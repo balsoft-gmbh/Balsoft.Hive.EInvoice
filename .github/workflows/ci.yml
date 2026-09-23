@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache validators
+        uses: actions/cache@v4
+        with:
+          path: .tools/validators
+          key: validators-${{ hashFiles('eng/get-validators.sh') }}
+
+      - name: Download validators (KoSIT, XRechnung configuration, Mustang)
+        run: bash eng/get-validators.sh
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test (net8.0 and net10.0, with external validation)
+        env:
+          HIVE_VALIDATORS: ${{ github.workspace }}/.tools/validators
+        run: dotnet test -c Release --no-build
+
+      - name: Pack (unsigned, for inspection)
+        run: dotnet pack -c Release --no-build -o artifacts/packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages

@@ -1,0 +1,28 @@
+name: Bug report
+description: A generated document is rejected, or a total or rule is wrong.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Hive.EInvoice version
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Profile
+      options: [XRechnung, EN16931, FacturXExtended, FacturXBasic, FacturXBasicWL, FacturXMinimum, PeppolBis3]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Validator report and invoice XML
+      description: The rejecting validator's output and the XML, with personal data removed.
