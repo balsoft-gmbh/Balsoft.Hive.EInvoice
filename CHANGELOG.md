@@ -18,5 +18,12 @@ First public preview.
 - `InvoiceValidator`: pre-flight check of the EN 16931, VAT category, code list and XRechnung
   (BR-DE) rules, with the official rule identifiers.
 - `CodeList`: the EN 16931 code lists, extracted from the official validation artefact.
-- Test suite validating every sample with the KoSIT validator and Mustang, and 30 negative
-  cases proving the pre-flight reports the same rule ids as KoSIT.
+- `UblWriter`: UBL 2.1 Invoice and CreditNote for XRechnung, EN 16931 and Peppol BIS 3.0.
+- `CiiReader`, `UblReader`, `InvoiceReader`: read CII and UBL back into the model, with the
+  stated totals and `TotalsDiscrepancies()` against the EN 16931 calculation.
+- `Hive.EInvoice.Pdf`: `HybridPdf.Create` builds PDF/A-3b hybrid invoices (Factur-X XMP,
+  generated sRGB output intent, associated file, missing TrueType fonts embedded from the
+  system); `HybridPdf.ExtractXml` and `HybridPdf.ReadInvoice` read them.
+- Test suite: 17 samples accepted by KoSIT as CII and UBL (XRechnung, EN 16931), by Mustang
+  in the Factur-X profiles, hybrid PDFs accepted by veraPDF, byte-exact round trips through
+  the readers, and 31 negative cases proving the pre-flight reports KoSIT's rule ids.

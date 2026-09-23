@@ -1,7 +1,8 @@
 # Hive.EInvoice
 
 Electronic invoices for .NET that pass the official validators: **XRechnung 3.0**,
-**ZUGFeRD 2.5 / Factur-X 1.09** and plain **EN 16931**, written as UN/CEFACT **CII**.
+**ZUGFeRD 2.5 / Factur-X 1.09**, **Peppol BIS 3.0** and plain **EN 16931**, written and read
+as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
 
 [![CI](https://github.com/ertugrulbalveren/Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/ertugrulbalveren/Hive.EInvoice/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Hive.EInvoice.svg)](https://www.nuget.org/packages/Hive.EInvoice)
@@ -14,16 +15,24 @@ Electronic invoices for .NET that pass the official validators: **XRechnung 3.0*
   allowances and charges, prepaid and rounding amounts.
 - **Rules before sending.** A pre-flight check reports what a receiver's validator would
   reject, with the official rule id: `[BR-DE-15] XRechnung requires the buyer reference`.
-- **Tested against the real thing.** Every sample in the test suite is validated by the
-  KoSIT validator (XRechnung 3.0.2 configuration) and by Mustang (Factur-X profiles) on
-  every build.
-- **No dependencies.** `Hive.EInvoice` depends on nothing but the base class library.
-  Targets `netstandard2.0` and `net8.0`.
+- **Read what you receive.** CII and UBL readers turn incoming documents back into the
+  model, and report where the sender's totals disagree with EN 16931.
+- **Hybrid PDFs.** `Hive.EInvoice.Pdf` turns your ERP's PDF into a PDF/A-3b with the XML
+  attached, Factur-X XMP metadata and missing fonts embedded.
+- **Tested against the real thing.** Every build validates the samples with the KoSIT
+  validator (XRechnung 3.0.2 configuration, CII and UBL) and with Mustang (Factur-X
+  profiles, PDF/A-3 via veraPDF).
+
+| Package | Dependencies | Targets |
+|---|---|---|
+| `Hive.EInvoice` | none | `netstandard2.0`, `net8.0` |
+| `Hive.EInvoice.Pdf` | `Hive.EInvoice`, PDFsharp (MIT) | `netstandard2.0`, `net8.0` |
 
 ## Install
 
 ```
 dotnet add package Hive.EInvoice
+dotnet add package Hive.EInvoice.Pdf      # only for hybrid PDF invoices
 ```
 
 ## Write an XRechnung
@@ -60,8 +69,15 @@ invoice.CashDiscounts.Add(new CashDiscount { Days = 7, Percent = 2m });   // wri
 byte[] xml = CiiWriter.Write(invoice, InvoiceProfile.XRechnung);
 ```
 
-`CiiWriter.Write` checks the invoice first and throws `InvoiceValidationException` with
-every violated rule. To check without writing:
+The same invoice as UBL, or as a hybrid PDF from your ERP's printout:
+
+```csharp
+byte[] ubl = UblWriter.Write(invoice, InvoiceProfile.XRechnung);
+byte[] pdf = HybridPdf.Create(File.ReadAllBytes("RE-2026-0001.pdf"), invoice, InvoiceProfile.EN16931);
+```
+
+`CiiWriter` and `UblWriter` check the invoice first and throw `InvoiceValidationException`
+listing every violated rule. To check without writing:
 
 ```csharp
 var result = InvoiceValidator.Validate(invoice, InvoiceProfile.XRechnung);
@@ -69,16 +85,33 @@ foreach (var issue in result.Issues)
     Console.WriteLine(issue);   // [BR-DE-6] XRechnung requires the seller contact telephone number. (BT-42)
 ```
 
+## Read an incoming invoice
+
+```csharp
+using Hive.EInvoice.Reading;
+
+var read = InvoiceReader.Read(File.ReadAllBytes("incoming.xml"));   // CII or UBL, detected
+Console.WriteLine($"{read.Syntax} {read.Profile}: {read.Invoice.Number} from {read.Invoice.Seller.Name}");
+foreach (var difference in read.TotalsDiscrepancies())
+    Console.WriteLine(difference);                                    // "BT-115 stated 100.00, calculated 100.01"
+
+var fromPdf = HybridPdf.ReadInvoice(File.ReadAllBytes("incoming.pdf")); // ZUGFeRD / Factur-X / XRechnung PDF
+```
+
 ## Profiles
 
-| `InvoiceProfile` | Specification | Lines | Validated in CI by |
-|---|---|---|---|
-| `XRechnung` | XRechnung 3.0 (German CIUS) | yes | KoSIT, scenario "EN16931 XRechnung (CII)" |
-| `EN16931` | EN 16931, Factur-X / ZUGFeRD "EN 16931" | yes | KoSIT, scenario "EN16931 (CII)" |
-| `FacturXExtended` | Factur-X / ZUGFeRD EXTENDED (EN 16931 content) | yes | Mustang |
-| `FacturXBasic` | Factur-X / ZUGFeRD BASIC | yes | Mustang |
-| `FacturXBasicWL` | Factur-X / ZUGFeRD BASIC WL | no | Mustang |
-| `FacturXMinimum` | Factur-X / ZUGFeRD MINIMUM | no | Mustang |
+| `InvoiceProfile` | Specification | CII | UBL | Validated in CI by |
+|---|---|---|---|---|
+| `XRechnung` | XRechnung 3.0 (German CIUS) | yes | yes | KoSIT, XRechnung scenarios |
+| `EN16931` | EN 16931, Factur-X / ZUGFeRD "EN 16931" | yes | yes | KoSIT, EN 16931 scenarios |
+| `FacturXExtended` | Factur-X / ZUGFeRD EXTENDED (EN 16931 content) | yes | | Mustang |
+| `FacturXBasic` | Factur-X / ZUGFeRD BASIC | yes | | Mustang |
+| `FacturXBasicWL` | Factur-X / ZUGFeRD BASIC WL (no lines) | yes | | Mustang |
+| `FacturXMinimum` | Factur-X / ZUGFeRD MINIMUM (no lines) | yes | | Mustang |
+| `PeppolBis3` | Peppol BIS Billing 3.0 | yes | yes | pre-flight Peppol rules |
+
+Hybrid PDFs are written for every Factur-X profile and XRechnung, and validated as PDF/A-3b
+by veraPDF inside Mustang.
 
 ## What the pre-flight check covers
 
@@ -86,7 +119,20 @@ The EN 16931 core rules (BR-01 to BR-65), the VAT category rules (BR-S, BR-Z, BR
 BR-IC, BR-G, BR-O), the code lists (BR-CL, extracted from the official artefact), and for
 XRechnung the German rules (BR-DE) plus the Peppol rules XRechnung 3.0 includes. The test
 suite breaks valid invoices in 31 specific ways and asserts that the pre-flight reports the
-same rule id as the KoSIT validator. The official validators remain authoritative.
+same rule id as the KoSIT validator. Where the pre-flight is stricter than the official
+artefact (BR-CL-23 is shadowed in the CII Schematron and never fires), a test documents it.
+The official validators remain authoritative.
+
+## Hybrid PDF details
+
+- Pages are taken from the carrier PDF unchanged; the XML is attached as `xrechnung.xml` or
+  `factur-x.xml` with relationship `Alternative` (`Data` for MINIMUM and BASIC WL).
+- XMP metadata declares PDF/A-3 conformance B and carries the Factur-X extension schema
+  (DocumentType, DocumentFileName, Version, ConformanceLevel).
+- The sRGB output intent profile is generated from the IEC 61966-2-1 definition by
+  `eng/icc/make_srgb_icc.py`, so the package ships no third-party ICC file.
+- TrueType fonts the carrier uses without embedding them are embedded from the system font
+  folders, found by PostScript name. Type 1 fonts cannot be embedded this way and are logged.
 
 ## Code lists
 
@@ -103,7 +149,7 @@ dotnet test
 The external validation tests need Java 21 and the validators:
 
 ```
-bash eng/get-validators.sh              # downloads KoSIT, the XRechnung configuration and Mustang
+bash eng/get-validators.sh              # KoSIT validator, XRechnung configuration, Mustang
 export HIVE_VALIDATORS=$PWD/.tools/validators
 dotnet test
 ```
@@ -111,9 +157,11 @@ dotnet test
 ## Specifications
 
 EN 16931-1:2017, XRechnung 3.0.2 (KoSIT, validator configuration 2026-08-31),
-ZUGFeRD 2.5 / Factur-X 1.09 (FeRD / FNFE-MPE, June 2026), UN/CEFACT CII D16B.
+ZUGFeRD 2.5 / Factur-X 1.09 (FeRD / FNFE-MPE, June 2026), Peppol BIS Billing 3.0,
+UN/CEFACT CII D16B, OASIS UBL 2.1, ISO 19005-3 (PDF/A-3).
 
 ## License
 
 Apache License 2.0. Copyright Balsoft GmbH. Maintained by Ertugrul Balveren
 ([Balsoft GmbH](https://balsoft.de)). It is the e-invoice engine of Hive DocFlow.
+Packages are author-signed by Balsoft GmbH; see [SECURITY.md](SECURITY.md).
