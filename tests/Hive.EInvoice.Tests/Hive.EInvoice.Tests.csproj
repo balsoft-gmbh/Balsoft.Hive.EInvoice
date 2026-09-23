@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hive.EInvoice\Hive.EInvoice.csproj" />
+    <ProjectReference Include="..\..\src\Hive.EInvoice.Pdf\Hive.EInvoice.Pdf.csproj" />
   </ItemGroup>
 
 </Project>
