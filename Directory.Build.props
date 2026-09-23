@@ -15,10 +15,10 @@
     <Authors>Ertugrul Balveren</Authors>
     <Company>Balsoft GmbH</Company>
     <Copyright>Copyright (c) Balsoft GmbH</Copyright>
-    <Product>Hive.EInvoice</Product>
+    <Product>Balsoft.Hive.EInvoice</Product>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ertugrulbalveren/Hive.EInvoice</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ertugrulbalveren/Hive.EInvoice</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

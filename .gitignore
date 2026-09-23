@@ -431,6 +431,6 @@ FodyWeavers.xsd
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
 
-# Hive.EInvoice
+# Balsoft.Hive.EInvoice
 artifacts/
 .tools/

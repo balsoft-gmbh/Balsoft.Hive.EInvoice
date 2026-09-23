@@ -14,7 +14,7 @@ Issues and pull requests are welcome.
   ```
 
 - **New rules** go into `InvoiceValidator` with the official rule identifier, and get a row
-  in `tests/Hive.EInvoice.Tests/NegativeCases.cs` that proves KoSIT reports the same id.
+  in `tests/Balsoft.Hive.EInvoice.Tests/NegativeCases.cs` that proves KoSIT reports the same id.
 - **Code lists** are never edited by hand: rerun `eng/codelists/extract_codelists.py`
   against the current KoSIT configuration.
 - Business terms keep their EN 16931 names and numbers in code and documentation.

@@ -1,11 +1,11 @@
-# Hive.EInvoice
+# Balsoft.Hive.EInvoice
 
 Electronic invoices for .NET that pass the official validators: **XRechnung 3.0**,
 **ZUGFeRD 2.5 / Factur-X 1.09**, **Peppol BIS 3.0** and plain **EN 16931**, written and read
 as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
 
-[![CI](https://github.com/ertugrulbalveren/Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/ertugrulbalveren/Hive.EInvoice/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/Hive.EInvoice.svg)](https://www.nuget.org/packages/Hive.EInvoice)
+[![CI](https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Balsoft.Hive.EInvoice.svg)](https://www.nuget.org/packages/Balsoft.Hive.EInvoice)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 - **A model that speaks EN 16931.** Every property is named after its business term and
@@ -17,7 +17,7 @@ as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
   reject, with the official rule id: `[BR-DE-15] XRechnung requires the buyer reference`.
 - **Read what you receive.** CII and UBL readers turn incoming documents back into the
   model, and report where the sender's totals disagree with EN 16931.
-- **Hybrid PDFs.** `Hive.EInvoice.Pdf` turns your ERP's PDF into a PDF/A-3b with the XML
+- **Hybrid PDFs.** `Balsoft.Hive.EInvoice.Pdf` turns your ERP's PDF into a PDF/A-3b with the XML
   attached, Factur-X XMP metadata and missing fonts embedded.
 - **Tested against the real thing.** Every build validates the samples with the KoSIT
   validator (XRechnung 3.0.2 configuration, CII and UBL) and with Mustang (Factur-X
@@ -25,21 +25,21 @@ as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
 
 | Package | Dependencies | Targets |
 |---|---|---|
-| `Hive.EInvoice` | none | `netstandard2.0`, `net8.0` |
-| `Hive.EInvoice.Pdf` | `Hive.EInvoice`, PDFsharp (MIT) | `netstandard2.0`, `net8.0` |
+| `Balsoft.Hive.EInvoice` | none | `netstandard2.0`, `net8.0` |
+| `Balsoft.Hive.EInvoice.Pdf` | `Balsoft.Hive.EInvoice`, PDFsharp (MIT) | `netstandard2.0`, `net8.0` |
 
 ## Install
 
 ```
-dotnet add package Hive.EInvoice
-dotnet add package Hive.EInvoice.Pdf      # only for hybrid PDF invoices
+dotnet add package Balsoft.Hive.EInvoice
+dotnet add package Balsoft.Hive.EInvoice.Pdf      # only for hybrid PDF invoices
 ```
 
 ## Write an XRechnung
 
 ```csharp
-using Hive.EInvoice;
-using Hive.EInvoice.Cii;
+using Balsoft.Hive.EInvoice;
+using Balsoft.Hive.EInvoice.Cii;
 
 var invoice = new Invoice
 {
@@ -88,7 +88,7 @@ foreach (var issue in result.Issues)
 ## Read an incoming invoice
 
 ```csharp
-using Hive.EInvoice.Reading;
+using Balsoft.Hive.EInvoice.Reading;
 
 var read = InvoiceReader.Read(File.ReadAllBytes("incoming.xml"));   // CII or UBL, detected
 Console.WriteLine($"{read.Syntax} {read.Profile}: {read.Invoice.Number} from {read.Invoice.Seller.Name}");

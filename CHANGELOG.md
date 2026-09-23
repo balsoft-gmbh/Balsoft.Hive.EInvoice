@@ -6,7 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.1.0-preview.1] - 2026-09-23
 
-First public preview.
+First public preview, published as `Balsoft.Hive.EInvoice` and `Balsoft.Hive.EInvoice.Pdf`
+(the `Hive.` package prefix on nuget.org is reserved by another publisher).
 
 ### Added
 - EN 16931 invoice model named after the business terms (BT/BG), with documentation per term.
@@ -21,7 +22,7 @@ First public preview.
 - `UblWriter`: UBL 2.1 Invoice and CreditNote for XRechnung, EN 16931 and Peppol BIS 3.0.
 - `CiiReader`, `UblReader`, `InvoiceReader`: read CII and UBL back into the model, with the
   stated totals and `TotalsDiscrepancies()` against the EN 16931 calculation.
-- `Hive.EInvoice.Pdf`: `HybridPdf.Create` builds PDF/A-3b hybrid invoices (Factur-X XMP,
+- `Balsoft.Hive.EInvoice.Pdf`: `HybridPdf.Create` builds PDF/A-3b hybrid invoices (Factur-X XMP,
   generated sRGB output intent, associated file, missing TrueType fonts embedded from the
   system); `HybridPdf.ExtractXml` and `HybridPdf.ReadInvoice` read them.
 - Test suite: 17 samples accepted by KoSIT as CII and UBL (XRechnung, EN 16931), by Mustang

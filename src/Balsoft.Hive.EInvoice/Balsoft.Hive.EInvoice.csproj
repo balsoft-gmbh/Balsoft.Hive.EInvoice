@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <RootNamespace>Balsoft.Hive.EInvoice</RootNamespace>
+    <PackageId>Balsoft.Hive.EInvoice</PackageId>
+    <Description>EN 16931 electronic invoices for .NET: a typed model named after the EN 16931 business terms, XRechnung 3.0 and ZUGFeRD 2.5 / Factur-X 1.09 profiles, CII and UBL writers and readers, totals and VAT breakdown calculated per the standard, and a pre-flight check of the EN 16931 and XRechnung business rules. No third-party runtime dependencies.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Balsoft.Hive.EInvoice.Tests" />
+    <InternalsVisibleTo Include="Balsoft.Hive.EInvoice.Pdf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

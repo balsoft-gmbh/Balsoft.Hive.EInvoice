@@ -22,7 +22,7 @@ param(
     [Parameter(Mandatory)] [string] $Version,
     [string] $CertificateFingerprint = $env:HIVE_SIGN_FINGERPRINT,
     [string] $Timestamper = 'http://timestamp.sectigo.com',
-    [string] $Repository = 'ertugrulbalveren/Hive.EInvoice',
+    [string] $Repository = 'ertugrulbalveren/Balsoft.Hive.EInvoice',
     [switch] $SkipTests
 )
 $ErrorActionPreference = 'Stop'
@@ -69,12 +69,12 @@ foreach ($pkg in Get-ChildItem $out -Filter *.nupkg) {
 }
 
 Step "Tag $tag"
-Run git @('tag', '-a', $tag, '-m', "Hive.EInvoice $Version")
+Run git @('tag', '-a', $tag, '-m', "Balsoft.Hive.EInvoice $Version")
 Run git @('push', 'origin', $tag)
 
 Step 'GitHub release'
 $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
-$body = @{ tag_name = $tag; name = "Hive.EInvoice $Version"; body = $notes; draft = $true; prerelease = ($Version -match '-') } | ConvertTo-Json
+$body = @{ tag_name = $tag; name = "Balsoft.Hive.EInvoice $Version"; body = $notes; draft = $true; prerelease = ($Version -match '-') } | ConvertTo-Json
 $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$Repository/releases" -Headers $headers -Body $body -ContentType 'application/json'
 $uploadBase = $release.upload_url -replace '\{.*\}', ''
 foreach ($file in Get-ChildItem $out -File | Where-Object Extension -in '.nupkg', '.snupkg') {
