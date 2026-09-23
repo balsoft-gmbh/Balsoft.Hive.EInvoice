@@ -18,19 +18,21 @@ internal static class FontEmbedder
 {
     public static void EmbedMissingFonts(PdfDocument doc, IEnumerable<string> extraDirectories, Action<string>? log)
     {
-        var missing = new List<(string BaseFont, PdfDictionary Descriptor)>();
+        var missing = new List<MissingFont>();
         var seen = new HashSet<PdfDictionary>();
         foreach (var page in doc.Pages)
             Collect(page.Elements.GetDictionary("/Resources"), missing, seen, depth: 0);
         if (missing.Count == 0) return;
 
         var index = FontIndex.Build(extraDirectories.Concat(FontIndex.SystemDirectories()));
-        foreach (var (baseFont, descriptor) in missing)
+        foreach (var font in missing)
         {
+            var (baseFont, descriptor, cidFont) = (font.BaseFont, font.Descriptor, font.CidFont);
             string name = baseFont.TrimStart('/');
             int plus = name.IndexOf('+');
             if (plus == 6) name = name.Substring(7);   // subset tag "ABCDEF+"
-            string? file = index.Find(name);
+            var (bold, italic) = Style(name, descriptor);
+            string? file = index.Find(name, bold, italic);
             if (file is null)
             {
                 log?.Invoke($"Font '{name}' is not embedded in the carrier and was not found on this system; the PDF/A check will fail for it.");
@@ -43,11 +45,45 @@ internal static class FontEmbedder
             stream.Elements["/Length1"] = new PdfInteger(program.Length);
             doc.Internals.AddObject(stream);
             descriptor.Elements["/FontFile2"] = stream.Reference;
-            log?.Invoke($"Embedded font '{name}' from {file}.");
+            // PDF/A-3 (6.2.11.3.2) wants the CIDToGIDMap written out for an embedded CIDFontType2.
+            // Identity is also the default when the key is absent, so rendering does not change.
+            if (cidFont is not null && !cidFont.Elements.ContainsKey("/CIDToGIDMap"))
+                cidFont.Elements["/CIDToGIDMap"] = new PdfName("/Identity");
+            log?.Invoke($"Embedded font '{name}'{(bold ? " bold" : "")}{(italic ? " italic" : "")} from {file}.");
         }
     }
 
-    private static void Collect(PdfDictionary? resources, List<(string, PdfDictionary)> missing, HashSet<PdfDictionary> seen, int depth)
+    private sealed class MissingFont
+    {
+        public MissingFont(string baseFont, PdfDictionary descriptor, PdfDictionary? cidFont)
+        {
+            BaseFont = baseFont;
+            Descriptor = descriptor;
+            CidFont = cidFont;
+        }
+
+        public string BaseFont { get; }
+        public PdfDictionary Descriptor { get; }
+        public PdfDictionary? CidFont { get; }
+    }
+
+    /// <summary>
+    /// Bold and italic from the name ("Arial,Bold", "Arial-BoldItalicMT") or, when the name has no
+    /// style (AX 2009 writes plain "Arial" for its bold font), from the descriptor: ForceBold
+    /// flag or a weight of 600+, Italic flag or a non-zero italic angle.
+    /// </summary>
+    internal static (bool Bold, bool Italic) Style(string baseFont, PdfDictionary descriptor)
+    {
+        string n = baseFont.ToUpperInvariant();
+        int flags = descriptor.Elements.GetInteger("/Flags");
+        bool bold = n.Contains("BOLD") || n.Contains("BLACK") || n.Contains("HEAVY")
+            || (flags & 0x40000) != 0 || descriptor.Elements.GetInteger("/FontWeight") >= 600;
+        bool italic = n.Contains("ITALIC") || n.Contains("OBLIQUE")
+            || (flags & 0x40) != 0 || Math.Abs(descriptor.Elements.GetReal("/ItalicAngle")) > 0.01;
+        return (bold, italic);
+    }
+
+    private static void Collect(PdfDictionary? resources, List<MissingFont> missing, HashSet<PdfDictionary> seen, int depth)
     {
         if (resources is null || depth > 8) return;
         if (resources.Elements.GetDictionary("/Font") is { } fonts)
@@ -67,7 +103,7 @@ internal static class FontEmbedder
                 if (target.Elements.GetDictionary("/FontDescriptor") is not { } descriptor) continue;
                 if (descriptor.Elements.ContainsKey("/FontFile") || descriptor.Elements.ContainsKey("/FontFile2") || descriptor.Elements.ContainsKey("/FontFile3")) continue;
                 if (!seen.Add(descriptor)) continue;
-                missing.Add((target.Elements.GetName("/BaseFont"), descriptor));
+                missing.Add(new MissingFont(target.Elements.GetName("/BaseFont"), descriptor, subtype == "/CIDFontType2" ? target : null));
             }
         }
         if (resources.Elements.GetDictionary("/XObject") is { } xobjects)
@@ -87,6 +123,7 @@ internal sealed class FontIndex
     private readonly Dictionary<string, string> _postScript = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _fullName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _family = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _familyStyle = new(StringComparer.OrdinalIgnoreCase);
 
     public static IEnumerable<string> SystemDirectories()
     {
@@ -114,10 +151,18 @@ internal sealed class FontIndex
             catch (UnauthorizedAccessException) { continue; }
             foreach (string file in files.Where(f => f.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)))
             {
-                if (!TryReadNames(file, out string? ps, out string? full, out string? family)) continue;
+                if (!TryReadNames(file, out string? ps, out string? full, out string? family, out string? subfamily)) continue;
                 if (ps is not null && !index._postScript.ContainsKey(ps)) index._postScript[ps] = file;
                 if (full is not null && !index._fullName.ContainsKey(full)) index._fullName[full] = file;
                 if (family is not null && !index._family.ContainsKey(family)) index._family[family] = file;
+                if (family is not null && subfamily is not null)
+                {
+                    bool b = subfamily.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool i = subfamily.IndexOf("Italic", StringComparison.OrdinalIgnoreCase) >= 0
+                        || subfamily.IndexOf("Oblique", StringComparison.OrdinalIgnoreCase) >= 0;
+                    string key = StyleKey(family, b, i);
+                    if (!index._familyStyle.ContainsKey(key)) index._familyStyle[key] = file;
+                }
             }
         }
         return index;
@@ -127,21 +172,28 @@ internal sealed class FontIndex
     /// The font file for a PDF BaseFont name: by PostScript name ("Arial-BoldMT"), then by full
     /// name with the PDF style suffix spelled out ("Arial,Bold" becomes "Arial Bold"), then by family.
     /// </summary>
-    public string? Find(string baseFont)
+    public string? Find(string baseFont, bool bold = false, bool italic = false)
     {
         if (_postScript.TryGetValue(baseFont, out var f)) return f;
         string full = baseFont.Replace(',', ' ').Replace('-', ' ');
-        if (_fullName.TryGetValue(full, out f)) return f;
         string trimmed = full.EndsWith("MT", StringComparison.Ordinal) ? full.Substring(0, full.Length - 2).TrimEnd() : full;
+        bool styledName = full.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0
+            || full.IndexOf("Italic", StringComparison.OrdinalIgnoreCase) >= 0;
+        // A plain family name with a bold or italic descriptor: pick the styled file of that family.
+        if (!styledName && (bold || italic) && _familyStyle.TryGetValue(StyleKey(trimmed, bold, italic), out f)) return f;
+        if (_fullName.TryGetValue(full, out f)) return f;
         if (_fullName.TryGetValue(trimmed, out f)) return f;
         if (_fullName.TryGetValue(trimmed + " Regular", out f)) return f;
+        if (_familyStyle.TryGetValue(StyleKey(trimmed, bold, italic), out f)) return f;
         return _family.TryGetValue(trimmed, out f) ? f : null;
     }
 
-    /// <summary>Reads nameID 1 (family), 4 (full name) and 6 (PostScript name) from a TrueType 'name' table.</summary>
-    internal static bool TryReadNames(string file, out string? postScript, out string? fullName, out string? family)
+    private static string StyleKey(string family, bool bold, bool italic) => $"{family}|{(bold ? "B" : "")}{(italic ? "I" : "")}";
+
+    /// <summary>Reads nameID 1 (family), 2 (subfamily), 4 (full name) and 6 (PostScript name) from a TrueType 'name' table.</summary>
+    internal static bool TryReadNames(string file, out string? postScript, out string? fullName, out string? family, out string? subfamily)
     {
-        postScript = fullName = family = null;
+        postScript = fullName = family = subfamily = null;
         try
         {
             using var fs = File.OpenRead(file);
@@ -179,6 +231,7 @@ internal sealed class FontIndex
             }
 
             family = Read(1);
+            subfamily = Read(2);
             fullName = Read(4);
             postScript = Read(6);
             return postScript is not null || fullName is not null;
