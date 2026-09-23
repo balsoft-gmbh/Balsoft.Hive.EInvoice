@@ -22,7 +22,7 @@ param(
     [Parameter(Mandatory)] [string] $Version,
     [string] $CertificateFingerprint = $env:HIVE_SIGN_FINGERPRINT,
     [string] $Timestamper = 'http://timestamp.sectigo.com',
-    [string] $Repository = 'ertugrulbalveren/Balsoft.Hive.EInvoice',
+    [string] $Repository = 'balsoft-gmbh/Balsoft.Hive.EInvoice',
     [switch] $SkipTests
 )
 $ErrorActionPreference = 'Stop'
