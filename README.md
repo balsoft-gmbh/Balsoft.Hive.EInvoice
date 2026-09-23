@@ -4,7 +4,7 @@ Electronic invoices for .NET that pass the official validators: **XRechnung 3.0*
 **ZUGFeRD 2.5 / Factur-X 1.09**, **Peppol BIS 3.0** and plain **EN 16931**, written and read
 as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
 
-[![CI](https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice/actions/workflows/ci.yml)
+[![CI](https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Balsoft.Hive.EInvoice.svg)](https://www.nuget.org/packages/Balsoft.Hive.EInvoice)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 

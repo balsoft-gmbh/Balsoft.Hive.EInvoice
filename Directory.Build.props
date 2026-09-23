@@ -17,8 +17,8 @@
     <Copyright>Copyright (c) Balsoft GmbH</Copyright>
     <Product>Balsoft.Hive.EInvoice</Product>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

@@ -1,7 +1,7 @@
 # Security policy
 
 Please report vulnerabilities privately through GitHub's
-[private vulnerability reporting](https://github.com/ertugrulbalveren/Balsoft.Hive.EInvoice/security/advisories/new),
+[private vulnerability reporting](https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice/security/advisories/new),
 not in a public issue. You will get an answer within five working days.
 
 Released packages are author-signed with the code signing certificate of Balsoft GmbH
