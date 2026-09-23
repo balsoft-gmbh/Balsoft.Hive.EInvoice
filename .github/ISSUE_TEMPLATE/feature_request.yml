@@ -1,0 +1,10 @@
+name: Feature request
+description: A business term, profile or format that is missing.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need, with the specification reference (BT/BG, rule, profile)
+    validations:
+      required: true
