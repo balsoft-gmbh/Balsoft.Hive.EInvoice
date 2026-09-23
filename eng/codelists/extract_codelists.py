@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate src/Hive.EInvoice/CodeLists/CodeListData.g.cs from the official EN 16931
+"""Generate src/Balsoft.Hive.EInvoice/CodeLists/CodeListData.g.cs from the official EN 16931
 CII validation artefact (the Schematron compiled to XSLT that ships with the KoSIT
 XRechnung validator configuration).
 
@@ -66,7 +66,7 @@ def render(found: dict[str, list[str]], source: str) -> str:
         f"// artefact ({source}). Do not edit by hand; re-run the script instead.",
         "// </auto-generated>",
         "#nullable enable",
-        "namespace Hive.EInvoice.CodeLists;",
+        "namespace Balsoft.Hive.EInvoice.CodeLists;",
         "",
         "internal static class CodeListData",
         "{",
@@ -100,7 +100,7 @@ def main() -> None:
     xsl = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
     source = sys.argv[2] if len(sys.argv) > 2 else "KoSIT XRechnung validator configuration"
     found = extract(xsl)
-    target = pathlib.Path(__file__).resolve().parents[2] / "src" / "Hive.EInvoice" / "CodeLists" / "CodeListData.g.cs"
+    target = pathlib.Path(__file__).resolve().parents[2] / "src" / "Balsoft.Hive.EInvoice" / "CodeLists" / "CodeListData.g.cs"
     target.write_text(render(found, source), encoding="utf-8", newline="\n")
     for rule, (name, _) in RULES.items():
         print(f"{rule:9} {name:32} {len(found.get(rule, []))}")

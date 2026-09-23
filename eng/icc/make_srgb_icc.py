@@ -3,10 +3,10 @@
 
 The profile is generated from the published sRGB definition (IEC 61966-2-1): primaries and
 white point adapted to the D50 profile connection space with the Bradford transform, and
-the sRGB tone curve sampled at 1024 points. Generating it keeps Hive.EInvoice.Pdf free of
+the sRGB tone curve sampled at 1024 points. Generating it keeps Balsoft.Hive.EInvoice.Pdf free of
 third-party profile files with their own licence terms.
 
-Usage: python eng/icc/make_srgb_icc.py src/Hive.EInvoice.Pdf/Resources/sRGB.icc
+Usage: python eng/icc/make_srgb_icc.py src/Balsoft.Hive.EInvoice.Pdf/Resources/sRGB.icc
 """
 import struct
 import sys

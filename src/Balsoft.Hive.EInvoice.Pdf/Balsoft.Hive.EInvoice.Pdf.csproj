@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+    <RootNamespace>Balsoft.Hive.EInvoice.Pdf</RootNamespace>
+    <PackageId>Balsoft.Hive.EInvoice.Pdf</PackageId>
+    <Description>Hybrid e-invoices for Balsoft.Hive.EInvoice: embeds the XRechnung or ZUGFeRD / Factur-X XML into a PDF/A-3 (Factur-X XMP metadata, sRGB output intent, associated file relationship), repairs common carrier PDF defects and embeds missing fonts. Reads the XML back out of a hybrid PDF. Built on PDFsharp (MIT).</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Balsoft.Hive.EInvoice\Balsoft.Hive.EInvoice.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\sRGB.icc" LogicalName="Balsoft.Hive.EInvoice.Pdf.sRGB.icc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
