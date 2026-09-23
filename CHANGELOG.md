@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-09-23
+
+First stable release. The API of 0.1.0-preview.1 is unchanged; hybrid PDFs now repair the
+carrier defects found on a live AX 2009 installation, verified with veraPDF.
+
+### Added
+- `HybridPdfOptions.RemoveTrailingNotdef` (default on): removes glyph 0 at the end of text
+  strings in two-byte Identity fonts, which some ERP print engines emit for line breaks and
+  PDF/A forbids (ISO 19005-3, 6.2.11.8). Nothing visible changes.
+
+### Fixed
+- Font embedding picks the bold or italic font file from the font descriptor (ForceBold,
+  Italic flags, weight, italic angle) when the font name carries no style, as with AX 2009,
+  which names its bold font plain "Arial". Wrong glyph widths (6.2.11.5) no longer occur.
+- An embedded CIDFontType2 gets an explicit `/CIDToGIDMap /Identity` (6.2.11.3.2).
+
 ## [0.1.0-preview.1] - 2026-09-23
 
 First public preview, published as `Balsoft.Hive.EInvoice` and `Balsoft.Hive.EInvoice.Pdf`

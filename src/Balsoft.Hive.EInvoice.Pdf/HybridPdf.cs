@@ -32,6 +32,13 @@ public sealed class HybridPdfOptions
     /// </summary>
     public bool EmbedMissingFonts { get; set; } = true;
 
+    /// <summary>
+    /// Remove .notdef glyph references at the end of text strings shown with two-byte Identity
+    /// fonts, which some ERP print engines emit for line breaks and PDF/A forbids. Removing a
+    /// trailing glyph changes nothing that is painted. Default true.
+    /// </summary>
+    public bool RemoveTrailingNotdef { get; set; } = true;
+
     /// <summary>Additional folders to search for fonts, before the system font folders.</summary>
     public IList<string> FontDirectories { get; } = new List<string>();
 
@@ -97,6 +104,8 @@ public static class HybridPdf
         AddOutputIntent(output);
         if (options.EmbedMissingFonts)
             FontEmbedder.EmbedMissingFonts(output, options.FontDirectories, options.Log);
+        if (options.RemoveTrailingNotdef)
+            NotdefCleaner.RemoveTrailingNotdef(output, options.Log);
 
         using var saved = new MemoryStream();
         output.Save(saved, closeStream: false);

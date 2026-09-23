@@ -27,16 +27,21 @@ public static class Carriers
         return ms.ToArray();
     }
 
-    /// <summary>Text in Arial as PDFsharp writes it (font embedded). Windows only.</summary>
-    public static byte[] Text(bool stripFontProgram = false)
+    /// <summary>
+    /// Text in Arial as PDFsharp writes it (font embedded). <paramref name="unicode"/> selects
+    /// Type0 Identity-H fonts with two-byte glyph codes, as the AX 2009 report writer uses;
+    /// otherwise simple WinAnsi TrueType fonts. Windows only.
+    /// </summary>
+    public static byte[] Text(bool stripFontProgram = false, bool unicode = false)
     {
         GlobalFontSettings.UseWindowsFontsUnderWindows = true;
         using var doc = new PdfDocument();
         var page = doc.AddPage();
+        var options = new XPdfFontOptions(unicode ? PdfFontEncoding.Unicode : PdfFontEncoding.WinAnsi);
         using (var g = XGraphics.FromPdfPage(page))
         {
-            var font = new XFont("Arial", 11);
-            g.DrawString("Balsoft GmbH · Rechnung RE-2026-0001", new XFont("Arial", 16, XFontStyleEx.Bold), XBrushes.Black, 40, 60);
+            var font = new XFont("Arial", 11, XFontStyleEx.Regular, options);
+            g.DrawString("Balsoft GmbH · Rechnung RE-2026-0001", new XFont("Arial", 16, XFontStyleEx.Bold, options), XBrushes.Black, 40, 60);
             g.DrawString("Beratung D365FO   10 h × 120,00 €   1.200,00 €", font, XBrushes.Black, 40, 100);
             g.DrawString("Summe brutto 2.616,81 €", font, XBrushes.Black, 40, 130);
         }
