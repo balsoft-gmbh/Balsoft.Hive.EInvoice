@@ -247,7 +247,7 @@ public static class Samples
             Period = new Period(new DateTime(2026, 8, 1), new DateTime(2026, 8, 31)),
             ObjectIdentifier = new SchemedIdentifier("VERTRAG-42", "AUV"),
         });
-        line.Item.Description = "Wartung und Support für Hive DocFlow";
+        line.Item.Description = "Wartung und Support für Hive BDC";
         line.Item.SellersIdentifier = "WART-01";
         line.Item.BuyersIdentifier = "K-99";
         line.Item.StandardIdentifier = new SchemedIdentifier("4012345000009", IdentifierScheme.Gtin);

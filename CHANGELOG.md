@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Documentation and package description name the exact versions the test suite validates
+  against: XRechnung 3.0.2 (KoSIT validator 1.6.3, configuration 2026-08-31) and
+  ZUGFeRD 2.5.2 / Factur-X 1.09.2 (Mustang 2.26). The output is unchanged; CI passed against
+  these versions on 2026-10-11.
+
 ## [1.0.0] - 2026-09-23
 
 First stable release. The API of 0.1.0-preview.1 is unchanged; hybrid PDFs now repair the

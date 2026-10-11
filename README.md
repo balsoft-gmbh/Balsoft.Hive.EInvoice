@@ -1,7 +1,7 @@
 # Balsoft.Hive.EInvoice
 
-Electronic invoices for .NET that pass the official validators: **XRechnung 3.0**,
-**ZUGFeRD 2.5 / Factur-X 1.09**, **Peppol BIS 3.0** and plain **EN 16931**, written and read
+Electronic invoices for .NET that pass the official validators: **XRechnung 3.0.2**,
+**ZUGFeRD 2.5.2 / Factur-X 1.09.2**, **Peppol BIS 3.0** and plain **EN 16931**, written and read
 as **CII** and **UBL**, and embedded into **PDF/A-3** hybrid invoices.
 
 [![CI](https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice/actions/workflows/ci.yml/badge.svg)](https://github.com/balsoft-gmbh/Balsoft.Hive.EInvoice/actions/workflows/ci.yml)
@@ -102,7 +102,7 @@ var fromPdf = HybridPdf.ReadInvoice(File.ReadAllBytes("incoming.pdf")); // ZUGFe
 
 | `InvoiceProfile` | Specification | CII | UBL | Validated in CI by |
 |---|---|---|---|---|
-| `XRechnung` | XRechnung 3.0 (German CIUS) | yes | yes | KoSIT, XRechnung scenarios |
+| `XRechnung` | XRechnung 3.0.2 (German CIUS) | yes | yes | KoSIT, XRechnung scenarios |
 | `EN16931` | EN 16931, Factur-X / ZUGFeRD "EN 16931" | yes | yes | KoSIT, EN 16931 scenarios |
 | `FacturXExtended` | Factur-X / ZUGFeRD EXTENDED (EN 16931 content) | yes | | Mustang |
 | `FacturXBasic` | Factur-X / ZUGFeRD BASIC | yes | | Mustang |
@@ -157,11 +157,12 @@ dotnet test
 ## Specifications
 
 EN 16931-1:2017, XRechnung 3.0.2 (KoSIT, validator configuration 2026-08-31),
-ZUGFeRD 2.5 / Factur-X 1.09 (FeRD / FNFE-MPE, June 2026), Peppol BIS Billing 3.0,
+ZUGFeRD 2.5.2 / Factur-X 1.09.2 (FeRD / FNFE-MPE, August 2026, validated with Mustang 2.26),
+Peppol BIS Billing 3.0,
 UN/CEFACT CII D16B, OASIS UBL 2.1, ISO 19005-3 (PDF/A-3).
 
 ## License
 
 Apache License 2.0. Copyright Balsoft GmbH. Maintained by Ertugrul Balveren
-([Balsoft GmbH](https://balsoft.de)). It is the e-invoice engine of Hive DocFlow.
+([Balsoft GmbH](https://balsoft.de)). It is the e-invoice engine of Hive BDC.
 Packages are author-signed by Balsoft GmbH; see [SECURITY.md](SECURITY.md).

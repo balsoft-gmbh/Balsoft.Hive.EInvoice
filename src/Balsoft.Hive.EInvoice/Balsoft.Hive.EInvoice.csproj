@@ -4,7 +4,7 @@
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <RootNamespace>Balsoft.Hive.EInvoice</RootNamespace>
     <PackageId>Balsoft.Hive.EInvoice</PackageId>
-    <Description>EN 16931 electronic invoices for .NET: a typed model named after the EN 16931 business terms, XRechnung 3.0 and ZUGFeRD 2.5 / Factur-X 1.09 profiles, CII and UBL writers and readers, totals and VAT breakdown calculated per the standard, and a pre-flight check of the EN 16931 and XRechnung business rules. No third-party runtime dependencies.</Description>
+    <Description>EN 16931 electronic invoices for .NET: a typed model named after the EN 16931 business terms, XRechnung 3.0.2 and ZUGFeRD 2.5.2 / Factur-X 1.09.2 profiles, CII and UBL writers and readers, totals and VAT breakdown calculated per the standard, and a pre-flight check of the EN 16931 and XRechnung business rules. No third-party runtime dependencies.</Description>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
