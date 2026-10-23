@@ -1,5 +1,7 @@
 using System.Xml.Linq;
 using Balsoft.Hive.EInvoice.Cii;
+using Balsoft.Hive.EInvoice.Reading;
+using Balsoft.Hive.EInvoice.Ubl;
 using Balsoft.Hive.EInvoice.Validation;
 
 namespace Balsoft.Hive.EInvoice.Tests;
@@ -116,6 +118,44 @@ public class WriterTests
         Assert.Empty(Cii(Samples.Standard(), InvoiceProfile.FacturXMinimum).Descendants(Ram + "IncludedSupplyChainTradeLineItem"));
         Assert.Empty(Cii(Samples.Standard(), InvoiceProfile.FacturXBasicWL).Descendants(Ram + "IncludedSupplyChainTradeLineItem"));
         Assert.Equal(2, Cii(Samples.Standard(), InvoiceProfile.FacturXBasic).Descendants(Ram + "IncludedSupplyChainTradeLineItem").Count());
+    }
+
+    [Fact]
+    public void ProjectNameIsWrittenNextToTheProjectReference()
+    {
+        var project = Cii(Samples.FullDetails()).Descendants(Ram + "SpecifiedProcuringProject").Single();
+        Assert.Equal("PRJ-77", project.Element(Ram + "ID")!.Value);
+        Assert.Equal("Wartung Rechenzentrum Süd", project.Element(Ram + "Name")!.Value);
+    }
+
+    [Fact]
+    public void WithoutAProjectNameCiiGetsTheRequiredPlaceholder()
+    {
+        var inv = Samples.FullDetails();
+        inv.ProjectName = " ";
+        var project = Cii(inv).Descendants(Ram + "SpecifiedProcuringProject").Single();
+        Assert.Equal("Project reference", project.Element(Ram + "Name")!.Value);
+        Assert.Null(InvoiceReader.Read(CiiWriter.Write(inv, InvoiceProfile.XRechnung)).Invoice.ProjectName);
+    }
+
+    [Fact]
+    public void ProjectNameWithoutAProjectReferenceIsNotWritten()
+    {
+        var inv = Samples.FullDetails();
+        inv.ProjectReference = null;
+        Assert.Empty(Cii(inv).Descendants(Ram + "SpecifiedProcuringProject"));
+    }
+
+    [Fact]
+    public void ProjectNameIsReadBackFromCii()
+        => Assert.Equal("Wartung Rechenzentrum Süd", InvoiceReader.Read(CiiWriter.Write(Samples.FullDetails(), InvoiceProfile.XRechnung)).Invoice.ProjectName);
+
+    [Fact]
+    public void UblCarriesOnlyTheProjectReference()
+    {
+        string ubl = UblWriter.WriteToString(Samples.FullDetails(), InvoiceProfile.XRechnung);
+        Assert.Contains("PRJ-77", ubl);
+        Assert.DoesNotContain("Wartung Rechenzentrum Süd", ubl);
     }
 
     [Fact]

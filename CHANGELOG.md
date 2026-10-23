@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-23
+
+### Added
+- `Invoice.ProjectName`: the project name CII writes into `SpecifiedProcuringProject/Name` next
+  to the project reference (BT-11). Before, that mandatory element always said "Project
+  reference". EN 16931 has no business term for the name, so UBL leaves it out and the invoice
+  stays the same EN 16931 invoice in both syntaxes. Reading a CII document fills it unless the
+  name is the placeholder.
+
+### Security
+- `Balsoft.Hive.EInvoice.Pdf` references System.Security.Cryptography.Pkcs 8.0.2. PDFsharp
+  6.2.4 brings 8.0.1, which is affected by CVE-2026-84008 and CVE-2026-70162 (denial of
+  service, published 2026-10-13).
+
 ### Changed
 - Documentation and package description name the exact versions the test suite validates
   against: XRechnung 3.0.2 (KoSIT validator 1.6.3, configuration 2026-08-31) and

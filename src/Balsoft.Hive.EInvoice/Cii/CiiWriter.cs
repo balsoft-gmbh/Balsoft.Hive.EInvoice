@@ -34,6 +34,9 @@ public static class CiiWriter
     internal const string Udt = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
     internal const string Qdt = "urn:un:unece:uncefact:data:standard:QualifiedDataType:100";
 
+    /// <summary>The mandatory CII project name written when <see cref="Invoice.ProjectName"/> is empty.</summary>
+    internal const string DefaultProjectName = "Project reference";
+
     /// <summary>Writes the invoice and returns the UTF-8 XML bytes.</summary>
     public static byte[] Write(Invoice invoice, InvoiceProfile profile, WriterOptions? options = null)
     {
@@ -325,7 +328,7 @@ public static class CiiWriter
                 {
                     Start("SpecifiedProcuringProject");
                     Text("ID", _inv.ProjectReference);
-                    Text("Name", "Project reference");
+                    Text("Name", Has(_inv.ProjectName) ? _inv.ProjectName : DefaultProjectName);
                     End();
                 }
             }

@@ -187,7 +187,10 @@ public static class CiiReader
                     break;
             }
         }
-        inv.ProjectReference = a.Element(Ram + "SpecifiedProcuringProject")?.Element(Ram + "ID").Value();
+        var project = a.Element(Ram + "SpecifiedProcuringProject");
+        inv.ProjectReference = project?.Element(Ram + "ID").Value();
+        string? projectName = project?.Element(Ram + "Name").Value();
+        inv.ProjectName = projectName == CiiWriter.DefaultProjectName ? null : projectName;
     }
 
     private static Party Party(XElement? e)

@@ -44,6 +44,13 @@ public sealed class Invoice
     /// <summary>BT-11 Project reference.</summary>
     public string? ProjectReference { get; set; }
 
+    /// <summary>
+    /// Project name. Not an EN 16931 business term: CII requires a name next to BT-11 and writes
+    /// this one into <c>SpecifiedProcuringProject/Name</c> ("Project reference" when empty).
+    /// Written only together with <see cref="ProjectReference"/>; UBL has no element for it.
+    /// </summary>
+    public string? ProjectName { get; set; }
+
     /// <summary>BT-12 Contract reference.</summary>
     public string? ContractReference { get; set; }
 

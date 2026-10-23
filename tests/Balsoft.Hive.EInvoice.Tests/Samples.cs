@@ -218,6 +218,7 @@ public static class Samples
     {
         var inv = Base("RE-2026-0013");
         inv.ProjectReference = "PRJ-77";
+        inv.ProjectName = "Wartung Rechenzentrum Süd";
         inv.SalesOrderReference = "AB-2026-555";
         inv.PurchaseOrderReference = "BE-9981";
         inv.ReceivingAdviceReference = "WE-123";
