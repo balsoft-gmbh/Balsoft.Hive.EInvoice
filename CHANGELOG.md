@@ -15,6 +15,10 @@ All notable changes to this project are documented here. The format follows
   stays the same EN 16931 invoice in both syntaxes. Reading a CII document fills it unless the
   name is the placeholder.
 
+### Fixed
+- `ReadResult.TotalsDiscrepancies()` formats amounts with the invariant culture. On a machine
+  with a German culture it said "stated 2616,80" instead of "stated 2616.80".
+
 ### Security
 - `Balsoft.Hive.EInvoice.Pdf` references System.Security.Cryptography.Pkcs 8.0.2. PDFsharp
   6.2.4 brings 8.0.1, which is affected by CVE-2026-84008 and CVE-2026-70162 (denial of

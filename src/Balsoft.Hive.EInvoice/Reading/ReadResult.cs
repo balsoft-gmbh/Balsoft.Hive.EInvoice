@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Balsoft.Hive.EInvoice.Reading;
@@ -74,7 +75,7 @@ public sealed class ReadResult
         void Check(string bt, decimal? stated, decimal calculated)
         {
             if (stated is { } s && s != calculated)
-                list.Add($"{bt} stated {s:0.00}, calculated {calculated:0.00}");
+                list.Add(FormattableString.Invariant($"{bt} stated {s:0.00}, calculated {calculated:0.00}"));
         }
         Check("BT-106", StatedTotals.LineNetTotal, calc.LineNetTotal);
         Check("BT-107", StatedTotals.AllowanceTotal, calc.AllowanceTotal);

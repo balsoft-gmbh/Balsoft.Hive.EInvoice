@@ -71,5 +71,23 @@ public class RoundTripTests
         Assert.Equal("BT-115 stated 2616.80, calculated 2616.81", Assert.Single(read.TotalsDiscrepancies()));
     }
 
+    [Fact]
+    public void DiscrepanciesDoNotDependOnTheCurrentCulture()
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+        try
+        {
+            string xml = CiiWriter.WriteToString(Samples.Standard(), InvoiceProfile.EN16931)
+                .Replace("<ram:DuePayableAmount>2616.81</ram:DuePayableAmount>", "<ram:DuePayableAmount>2616.80</ram:DuePayableAmount>", StringComparison.Ordinal);
+            var read = InvoiceReader.Read(System.Text.Encoding.UTF8.GetBytes(xml));
+            Assert.Equal("BT-115 stated 2616.80, calculated 2616.81", Assert.Single(read.TotalsDiscrepancies()));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
+    }
+
     private static string Text(byte[] xml) => System.Text.Encoding.UTF8.GetString(xml);
 }
