@@ -486,7 +486,7 @@ public static class Samples
             BuyerAccountingReference = "KST-1",
             GrossPrice = 55m,
         });
-        detail.Item.Attributes.Add(new ItemAttribute { Name = "Gewicht", Value = "2 kg", TypeCode = "WEI", ValueMeasure = 2m, ValueMeasureUnitCode = "KGM" });
+        detail.Item.Attributes.Add(new ItemAttribute { Name = "Gewicht", Value = "2 kg", TypeCode = "AAA", ValueMeasure = 2m, ValueMeasureUnitCode = "KGM" });
         detail.Item.Classifications.Add(new ItemClassification { Code = "72267000", Scheme = "STI", ClassName = "Wartung" });
         var lx = new InvoiceLineExtension
         {

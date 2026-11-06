@@ -350,9 +350,10 @@ public static class CiiWriter
             Start("ApplicableTradeTax");
             if (lx?.VatAmount is { } lineVat) Text("CalculatedAmount", Amount(lineVat));
             Text("TypeCode", "VAT");
-            Text("ExemptionReason", lx?.VatExemptionReason);
+            var lineExemption = ExemptionFor(line.VatCategory);
+            Text("ExemptionReason", lx?.VatExemptionReason ?? lineExemption?.Reason);
             Text("CategoryCode", line.VatCategory.ToCode());
-            Text("ExemptionReasonCode", lx?.VatExemptionReasonCode);
+            Text("ExemptionReasonCode", lx?.VatExemptionReasonCode ?? lineExemption?.ReasonCode);
             Text("DueDateTypeCode", lx?.VatPointDateCode);
             if (InvoiceCalculator.EffectiveRate(line.VatCategory, line.VatRate) is { } rate)
                 Text("RateApplicablePercent", Percent(rate));
@@ -901,14 +902,19 @@ public static class CiiWriter
             End();
         }
 
+        /// <summary>BR-FXEXT-*-08rev: under EXTENDED a VAT breakdown's exemption reason is matched against its lines and charges.</summary>
+        private VatExemption? ExemptionFor(VatCategory category)
+            => _extended ? _inv.VatExemptions.FirstOrDefault(e => e.Category == category) : null;
+
         private void ExtendedTaxElement(string element, ExtendedTax tax)
         {
             Start(element);
             if (tax.CalculatedAmount is { } calculated) Text("CalculatedAmount", Amount(calculated));
             Text("TypeCode", "VAT");
-            Text("ExemptionReason", tax.ExemptionReason);
+            var exemption = ExemptionFor(tax.Category);
+            Text("ExemptionReason", tax.ExemptionReason ?? exemption?.Reason);
             Text("CategoryCode", tax.Category.ToCode());
-            Text("ExemptionReasonCode", tax.ExemptionReasonCode);
+            Text("ExemptionReasonCode", tax.ExemptionReasonCode ?? exemption?.ReasonCode);
             if (InvoiceCalculator.EffectiveRate(tax.Category, tax.Rate) is { } rate) Text("RateApplicablePercent", Percent(rate));
             End();
         }
@@ -1037,9 +1043,10 @@ public static class CiiWriter
             {
                 Start("CategoryTradeTax");
                 Text("TypeCode", "VAT");
-                if (_extended) Text("ExemptionReason", ac.ExemptionReason);
+                var chargeExemption = ExemptionFor(ac.VatCategory);
+                if (_extended) Text("ExemptionReason", ac.ExemptionReason ?? chargeExemption?.Reason);
                 Text("CategoryCode", ac.VatCategory.ToCode());
-                if (_extended) Text("ExemptionReasonCode", ac.ExemptionReasonCode);
+                if (_extended) Text("ExemptionReasonCode", ac.ExemptionReasonCode ?? chargeExemption?.ReasonCode);
                 if (InvoiceCalculator.EffectiveRate(ac.VatCategory, ac.VatRate) is { } rate)
                     Text("RateApplicablePercent", Percent(rate));
                 End();

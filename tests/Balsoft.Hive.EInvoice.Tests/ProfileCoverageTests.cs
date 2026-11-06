@@ -192,14 +192,14 @@ public class ProfileCoverageTests
 
     /// <summary>
     /// The workbook of the Factur-X / ZUGFeRD package lists every term of a profile with its XPath. The package is not
-    /// redistributable and sits behind a form, so this runs where HIVE_FACTURX_PACKAGE points at the unpacked workbook.
+    /// redistributable and sits behind a form, so this runs where HIVE_FACTURX_PACKAGE points at the unpacked package.
     /// </summary>
     [Theory]
     [MemberData(nameof(OfficialLists))]
     public void WritingMatchesTheOfficialListOfTheProfile(string sheet, InvoiceProfile profile)
     {
-        if (Environment.GetEnvironmentVariable("HIVE_FACTURX_PACKAGE") is not { Length: > 0 } workbook) { Assert.Skip("HIVE_FACTURX_PACKAGE is not set."); return; }
-        var official = OfficialPaths(workbook, sheet);
+        if (Environment.GetEnvironmentVariable("HIVE_FACTURX_PACKAGE") is not { Length: > 0 } package) { Assert.Skip("HIVE_FACTURX_PACKAGE is not set."); return; }
+        var official = OfficialPaths(Directory.GetFiles(package, "3. FACTUR-X*.xlsx", SearchOption.AllDirectories).Single(), sheet);
         Assert.True(official.Count > 20, $"only {official.Count} rows read from {sheet}");
 
         var written = new HashSet<string>(StringComparer.Ordinal);
@@ -221,6 +221,47 @@ public class ProfileCoverageTests
 
         var notWritten = official.Where(o => !written.Contains(o.Key)).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
         Assert.True(notWritten.Count == 0, $"listed for {sheet} but not written:{Environment.NewLine}{string.Join(Environment.NewLine, notWritten)}");
+    }
+
+    public static TheoryData<InvoiceProfile, string> OfficialRuleSets() => new()
+    {
+        { InvoiceProfile.FacturXMinimum, "MINIMUM" },
+        { InvoiceProfile.FacturXBasicWL, "BASIC-WL" },
+        { InvoiceProfile.FacturXBasic, "BASIC" },
+        { InvoiceProfile.EN16931, "EN16931" },
+        { InvoiceProfile.FacturXExtended, "EXTENDED" },
+    };
+
+    /// <summary>
+    /// The official rules of the package, which can be newer than those in Mustang. The one finding accepted is the warning on
+    /// the empty ApplicableHeaderTradeDelivery, which the schema makes mandatory.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(OfficialRuleSets))]
+    public void EverySamplePassesTheOfficialRulesOfTheProfile(InvoiceProfile profile, string name)
+    {
+        if (Environment.GetEnvironmentVariable("HIVE_FACTURX_PACKAGE") is not { Length: > 0 } package || ExternalValidators.Directory is not { } tools)
+        {
+            Assert.Skip("HIVE_FACTURX_PACKAGE or HIVE_VALIDATORS is not set.");
+            return;
+        }
+        string work = Path.Combine(Path.GetTempPath(), "official-rules-" + Guid.NewGuid().ToString("N"));
+        string input = Path.Combine(work, "in");
+        Directory.CreateDirectory(input);
+        try
+        {
+            foreach (var (sample, build) in Samples.All)
+                File.WriteAllBytes(Path.Combine(input, sample + ".xml"), CiiWriter.Write(build(), profile));
+            string xslt = Directory.GetFiles(package, $"FACTUR-X_{name}.xslt", SearchOption.AllDirectories).Single();
+            var findings = ExternalValidators.OfficialRules(tools, xslt, input, Path.Combine(work, "out"))
+                .Where(f => !(f.Rule == "PEPPOL-EN16931-R008" && f.Flag == "warning" && f.Location.Contains("ApplicableHeaderTradeDelivery", StringComparison.Ordinal)))
+                .Select(f => $"{f.File}: {f.Rule} ({f.Flag})").Distinct().ToList();
+            Assert.True(findings.Count == 0, string.Join(Environment.NewLine, findings));
+        }
+        finally
+        {
+            Directory.Delete(work, recursive: true);
+        }
     }
 
     /// <summary>XPath without prefixes and predicates, with the term id, from column S and F of a profile sheet.</summary>

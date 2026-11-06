@@ -242,6 +242,26 @@ public class ExtendedProfileTests
         => Assert.Contains(Cii(Samples.ExtendedFull(), InvoiceProfile.EN16931).Descendants(Ram + "Value"), v => v.Value == "2 kg");
 
     [Fact]
+    public void AnExemptLineTakesTheReasonOfItsBreakdownUnderExtended()
+    {
+        var tax = Cii(Samples.Exempt(), Extended).Descendants(Ram + "SpecifiedLineTradeSettlement").First().Element(Ram + "ApplicableTradeTax")!;
+        Assert.Equal(Samples.Exempt().VatExemptions[0].Reason, tax.Element(Ram + "ExemptionReason")!.Value);
+    }
+
+    [Fact]
+    public void OtherProfilesWriteNoExemptionReasonOnALine()
+        => Assert.Null(Cii(Samples.Exempt(), InvoiceProfile.EN16931).Descendants(Ram + "SpecifiedLineTradeSettlement").First().Element(Ram + "ApplicableTradeTax")!.Element(Ram + "ExemptionReason"));
+
+    [Fact]
+    public void ALineWithItsOwnReasonKeepsIt()
+    {
+        var inv = Samples.Exempt();
+        inv.Lines[0].Extended = new InvoiceLineExtension { VatExemptionReason = "Eigener Grund" };
+        var tax = Cii(inv, Extended).Descendants(Ram + "SpecifiedLineTradeSettlement").First().Element(Ram + "ApplicableTradeTax")!;
+        Assert.Equal("Eigener Grund", tax.Element(Ram + "ExemptionReason")!.Value);
+    }
+
+    [Fact]
     public void AFalseIndicatorIsWritten()
     {
         var inv = Samples.ExtendedFull();

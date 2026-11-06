@@ -82,6 +82,24 @@ public static class ExternalValidators
         return new Outcome(valid, findings);
     }
 
+    /// <summary>
+    /// Runs one profile's official Schematron, as the XSLT the Factur-X package ships, with the Saxon engine inside validator.jar.
+    /// Returns every failed assertion as file, rule id, flag and location.
+    /// </summary>
+    public static List<(string File, string Rule, string Flag, string Location)> OfficialRules(string dir, string xslt, string inputDirectory, string outputDirectory)
+    {
+        System.IO.Directory.CreateDirectory(outputDirectory);
+        Run("java", new[] { "-cp", Path.Combine(dir, "validator.jar"), "net.sf.saxon.Transform", "-s:" + inputDirectory, "-xsl:" + xslt, "-o:" + outputDirectory }, out _);
+        XNamespace svrl = "http://purl.oclc.org/dsdl/svrl";
+        var failed = new List<(string, string, string, string)>();
+        var reports = System.IO.Directory.GetFiles(outputDirectory);
+        if (reports.Length == 0) throw new InvalidOperationException($"No reports from {xslt}.");
+        foreach (string report in reports)
+            foreach (var assert in XDocument.Load(report).Descendants(svrl + "failed-assert"))
+                failed.Add((Path.GetFileName(report), assert.Attribute("id")?.Value ?? "", assert.Attribute("flag")?.Value ?? "error", assert.Attribute("location")?.Value ?? ""));
+        return failed;
+    }
+
     private static void Run(string exe, IEnumerable<string> args, out string stdout)
     {
         var psi = new ProcessStartInfo(exe)

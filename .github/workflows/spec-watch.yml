@@ -1,0 +1,48 @@
+name: spec-watch
+
+# Opens an issue when a newer Factur-X / ZUGFeRD or XRechnung version is published, so the
+# official field lists and rules get rechecked. A page that cannot be read fails the job.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  FACTURX_VERSION: '1.09.2'
+  XRECHNUNG_BUNDLE: 'xrechnung-3.0.2-bundle-2026-08-31'
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare the published versions with the pinned ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          page() { curl -fsSL -A 'Mozilla/5.0' "$1"; }
+
+          facturx=$(page https://fnfe-mpe.org/factur-x/ | grep -oE 'Factur-X 1\.[0-9]+(\.[0-9]+)?' | sed 's/Factur-X //' | sort -V | tail -1)
+          xrechnung=$(page https://xeinkauf.de/xrechnung/versionen-und-bundles/ | grep -oE 'xrechnung-[0-9.]+-bundle-[0-9-]+' | sort -V | tail -1)
+          [ -n "$facturx" ] || { echo "No Factur-X version found on the page."; exit 1; }
+          [ -n "$xrechnung" ] || { echo "No XRechnung bundle found on the page."; exit 1; }
+          echo "Factur-X: published $facturx, pinned $FACTURX_VERSION"
+          echo "XRechnung: published $xrechnung, pinned $XRECHNUNG_BUNDLE"
+
+          report() {
+            local title="$1"
+            if [ -z "$(gh issue list --state all --search "\"$title\" in:title" --json number --jq '.[0].number // empty')" ]; then
+              gh issue create --title "$title" --body "$2"
+            fi
+          }
+          if [ "$facturx" != "$FACTURX_VERSION" ]; then
+            report "Factur-X $facturx published" "Pinned: $FACTURX_VERSION. Recheck the official field lists and rules, then update spec-watch.yml."
+          fi
+          if [ "$xrechnung" != "$XRECHNUNG_BUNDLE" ]; then
+            report "$xrechnung published" "Pinned: $XRECHNUNG_BUNDLE. Recheck the KoSIT model and validator configuration, then update spec-watch.yml and eng/get-validators.sh."
+          fi

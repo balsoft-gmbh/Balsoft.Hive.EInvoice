@@ -24,6 +24,8 @@ All notable changes to this project are documented here. The format follows
 - Factur-X EXTENDED, third part: `InvoiceLine.Extended` (`InvoiceLineExtension`) with sub-lines and line status, product details, manufacturer, included items, line parties,
   references, delivery terms, quantities, stated line totals, and the extra attribute and classification fields. Under EXTENDED a line whose status reason is not DETAIL is left out of the totals.
 
+- Under EXTENDED a line, document level allowance or charge and EXTENDED tax without their own exemption reason take it from `Invoice.VatExemptions` (BR-FXEXT-*-08rev).
+
 ### Changed
 - `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no
   `PersonName`.
