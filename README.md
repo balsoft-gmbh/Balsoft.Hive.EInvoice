@@ -104,7 +104,7 @@ var fromPdf = HybridPdf.ReadInvoice(File.ReadAllBytes("incoming.pdf")); // ZUGFe
 |---|---|---|---|---|
 | `XRechnung` | XRechnung 3.0.2 (German CIUS) | yes | yes | KoSIT, XRechnung scenarios |
 | `EN16931` | EN 16931, Factur-X / ZUGFeRD "EN 16931" | yes | yes | KoSIT, EN 16931 scenarios |
-| `FacturXExtended` | Factur-X / ZUGFeRD EXTENDED (EN 16931 content, plus header and settlement terms through `Invoice.Extended`; line terms not yet) | yes | | Mustang |
+| `FacturXExtended` | Factur-X / ZUGFeRD EXTENDED (with `Invoice.Extended` and `InvoiceLine.Extended`) | yes | | Mustang |
 | `FacturXBasic` | Factur-X / ZUGFeRD BASIC | yes | | Mustang |
 | `FacturXBasicWL` | Factur-X / ZUGFeRD BASIC WL (no lines) | yes | | Mustang |
 | `FacturXMinimum` | Factur-X / ZUGFeRD MINIMUM (no lines) | yes | | Mustang |

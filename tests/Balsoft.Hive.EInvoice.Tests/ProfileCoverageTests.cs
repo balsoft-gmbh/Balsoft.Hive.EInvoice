@@ -38,12 +38,6 @@ public class ProfileCoverageTests
         return full;
     }
 
-    /// <summary>Official EXTENDED rows the library does not have yet.</summary>
-    private static readonly string[] OpenExtendedRows =
-    {
-        "SupplyChainTradeTransaction/IncludedSupplyChainTradeLineItem",
-    };
-
     private static IEnumerable<Invoice> FullInvoices()
     {
         yield return Samples.ExtendedFull();
@@ -187,13 +181,13 @@ public class ProfileCoverageTests
         Assert.True(extra.Count == 0, $"not in the {folder} schema:{Environment.NewLine}{string.Join(Environment.NewLine, extra)}");
     }
 
-    public static TheoryData<string, InvoiceProfile, bool> OfficialLists() => new()
+    public static TheoryData<string, InvoiceProfile> OfficialLists() => new()
     {
-        { "Factur-X CII D22B MINIMUM", InvoiceProfile.FacturXMinimum, true },
-        { "Factur-X CII D22B BASIC WL", InvoiceProfile.FacturXBasicWL, true },
-        { "Factur-X CII D22B BASIC", InvoiceProfile.FacturXBasic, true },
-        { "Factur-X CII D22B EN16931", InvoiceProfile.EN16931, true },
-        { "Factur-X CII D22B EXTENDED", InvoiceProfile.FacturXExtended, true },
+        { "Factur-X CII D22B MINIMUM", InvoiceProfile.FacturXMinimum },
+        { "Factur-X CII D22B BASIC WL", InvoiceProfile.FacturXBasicWL },
+        { "Factur-X CII D22B BASIC", InvoiceProfile.FacturXBasic },
+        { "Factur-X CII D22B EN16931", InvoiceProfile.EN16931 },
+        { "Factur-X CII D22B EXTENDED", InvoiceProfile.FacturXExtended },
     };
 
     /// <summary>
@@ -202,7 +196,7 @@ public class ProfileCoverageTests
     /// </summary>
     [Theory]
     [MemberData(nameof(OfficialLists))]
-    public void WritingMatchesTheOfficialListOfTheProfile(string sheet, InvoiceProfile profile, bool everyTermIsWritten)
+    public void WritingMatchesTheOfficialListOfTheProfile(string sheet, InvoiceProfile profile)
     {
         if (Environment.GetEnvironmentVariable("HIVE_FACTURX_PACKAGE") is not { Length: > 0 } workbook) { Assert.Skip("HIVE_FACTURX_PACKAGE is not set."); return; }
         var official = OfficialPaths(workbook, sheet);
@@ -225,8 +219,7 @@ public class ProfileCoverageTests
         var notListed = written.Where(p => !p.Contains("/@", StringComparison.Ordinal) && !listed.Contains(p)).OrderBy(p => p, StringComparer.Ordinal).ToList();
         Assert.True(notListed.Count == 0, $"written but not listed for {sheet}:{Environment.NewLine}{string.Join(Environment.NewLine, notListed)}");
 
-        if (!everyTermIsWritten) return;
-        var notWritten = official.Where(o => !written.Contains(o.Key) && !(profile == InvoiceProfile.FacturXExtended && OpenExtendedRows.Any(o.Key.Contains))).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var notWritten = official.Where(o => !written.Contains(o.Key)).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
         Assert.True(notWritten.Count == 0, $"listed for {sheet} but not written:{Environment.NewLine}{string.Join(Environment.NewLine, notWritten)}");
     }
 

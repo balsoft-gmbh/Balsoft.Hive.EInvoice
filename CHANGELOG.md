@@ -21,6 +21,8 @@ All notable changes to this project are documented here. The format follows
 - Factur-X EXTENDED, second part: tax currency exchange, VAT basis details, invoicing period description, logistics service charges, payment terms with partial payment,
   penalty, discount and payee, charges on behalf of a third party, advance payments, and the extra allowance, charge and direct debit fields. Under EXTENDED the logistics
   charges count as document level charges and third party charges add to the amount due; `InvoiceCalculator.Calculate(invoice, profile)` applies this.
+- Factur-X EXTENDED, third part: `InvoiceLine.Extended` (`InvoiceLineExtension`) with sub-lines and line status, product details, manufacturer, included items, line parties,
+  references, delivery terms, quantities, stated line totals, and the extra attribute and classification fields. Under EXTENDED a line whose status reason is not DETAIL is left out of the totals.
 
 ### Changed
 - `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no

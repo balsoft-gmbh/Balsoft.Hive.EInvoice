@@ -270,13 +270,16 @@ public sealed class ExtendedParty
     /// <summary>Role code (UNTDID 3035).</summary>
     public string? RoleCode { get; set; }
 
+    /// <summary>Additional legal information. Only the line level seller and manufacturer have it.</summary>
+    public string? Description { get; set; }
+
     /// <summary>Legal registration identifier, with an optional scheme.</summary>
     public SchemedIdentifier? LegalRegistrationIdentifier { get; set; }
 
     /// <summary>Trading name.</summary>
     public string? TradingName { get; set; }
 
-    /// <summary>Legal postal address.</summary>
+    /// <summary>Legal postal address. Document level parties only; a line level party ignores it.</summary>
     public PostalAddress? LegalAddress { get; set; }
 
     /// <summary>Contacts.</summary>
@@ -290,6 +293,12 @@ public sealed class ExtendedParty
 
     /// <summary>VAT identifier.</summary>
     public string? VatIdentifier { get; set; }
+
+    /// <summary>
+    /// Local tax identifier. The official workbook lists it for the line level seller and manufacturer only, but the
+    /// official rule BR-FXEXT-03 (Factur-X 1.09.2) rejects any scheme other than VA outside the seller, so a validator refuses it.
+    /// </summary>
+    public string? TaxRegistrationIdentifier { get; set; }
 }
 
 /// <summary>A reference to a document by its number and date.</summary>
@@ -314,3 +323,255 @@ public sealed class DeliveryTerms
     /// <summary>BT-X-564 Name of the place the terms refer to.</summary>
     public string? LocationName { get; set; }
 }
+
+/// <summary>Invoice line terms that exist only in the Factur-X / ZUGFeRD EXTENDED profile.</summary>
+public sealed class InvoiceLineExtension
+{
+    /// <summary>BT-X-304 The line this one belongs to.</summary>
+    public string? ParentLineId { get; set; }
+
+    /// <summary>BT-X-7 Line status code.</summary>
+    public string? LineStatusCode { get; set; }
+
+    /// <summary>
+    /// BT-X-8 Line status reason code: DETAIL, GROUP or INFORMATION. A line with another value than DETAIL
+    /// does not count in the totals of this profile.
+    /// </summary>
+    public string? LineStatusReasonCode { get; set; }
+
+    /// <summary>BT-X-9 Line note content code.</summary>
+    public string? NoteContentCode { get; set; }
+
+    /// <summary>BT-X-10 Line note subject code.</summary>
+    public string? NoteSubjectCode { get; set; }
+
+    /// <summary>BT-X-305 Item identifier without a scheme.</summary>
+    public string? ItemIdentifier { get; set; }
+
+    /// <summary>BT-X-532 Item industry assigned identifier.</summary>
+    public string? IndustryAssignedIdentifier { get; set; }
+
+    /// <summary>BT-X-533 Item model identifier.</summary>
+    public string? ModelIdentifier { get; set; }
+
+    /// <summary>BT-X-534 Batch identifiers.</summary>
+    public List<string> BatchIdentifiers { get; } = new();
+
+    /// <summary>BT-X-535 Brand name.</summary>
+    public string? BrandName { get; set; }
+
+    /// <summary>BT-X-536 Model name.</summary>
+    public string? ModelName { get; set; }
+
+    /// <summary>BG-X-84 Individual product instances.</summary>
+    public List<ProductInstance> ProductInstances { get; } = new();
+
+    /// <summary>BG-X-93 Manufacturer.</summary>
+    public ExtendedParty? Manufacturer { get; set; }
+
+    /// <summary>BG-X-1 Items included in this one.</summary>
+    public List<IncludedProduct> IncludedProducts { get; } = new();
+
+    /// <summary>BG-X-87 Delivery terms of this line.</summary>
+    public DeliveryTerms? DeliveryTerms { get; set; }
+
+    /// <summary>BG-X-81 Sales order reference.</summary>
+    public LineDocumentReference? SalesOrder { get; set; }
+
+    /// <summary>BT-X-21 Purchase order number. The line reference is <see cref="InvoiceLine.OrderLineReference"/>.</summary>
+    public string? PurchaseOrderNumber { get; set; }
+
+    /// <summary>BT-X-22 Purchase order date.</summary>
+    public DateTime? PurchaseOrderDate { get; set; }
+
+    /// <summary>BG-X-47 Quotation reference.</summary>
+    public LineDocumentReference? Quotation { get; set; }
+
+    /// <summary>BG-X-2 Contract reference.</summary>
+    public LineDocumentReference? Contract { get; set; }
+
+    /// <summary>BG-X-3 Additional documents.</summary>
+    public List<LineSupportingDocument> SupportingDocuments { get; } = new();
+
+    /// <summary>BT-X-34 and following: allowances and charges on the gross price. Take the place of <see cref="InvoiceLine.PriceDiscount"/> when set.</summary>
+    public List<AllowanceCharge> GrossPriceAllowancesAndCharges { get; } = new();
+
+    /// <summary>BG-X-4 Tax included in the net price, for B2C.</summary>
+    public ExtendedTax? NetPriceIncludedTax { get; set; }
+
+    /// <summary>BG-X-90 Seller of this line.</summary>
+    public ExtendedParty? ItemSeller { get; set; }
+
+    /// <summary>BG-X-5 Ultimate customer order references.</summary>
+    public List<LineDocumentReference> UltimateCustomerOrders { get; } = new();
+
+    /// <summary>BT-X-46 Free of charge quantity.</summary>
+    public decimal? ChargeFreeQuantity { get; set; }
+
+    /// <summary>BT-X-46-0 Unit of the free of charge quantity.</summary>
+    public string? ChargeFreeQuantityUnitCode { get; set; }
+
+    /// <summary>BT-X-47 Number of packages.</summary>
+    public decimal? PackageQuantity { get; set; }
+
+    /// <summary>BT-X-47-0 Unit of the number of packages.</summary>
+    public string? PackageQuantityUnitCode { get; set; }
+
+    /// <summary>BT-X-561 Units per package.</summary>
+    public decimal? PerPackageUnitQuantity { get; set; }
+
+    /// <summary>BT-X-561-0 Unit of the units per package.</summary>
+    public string? PerPackageUnitCode { get; set; }
+
+    /// <summary>BG-X-7 Ship to party of this line.</summary>
+    public ExtendedParty? ShipTo { get; set; }
+
+    /// <summary>BG-X-10 Ultimate ship to party of this line.</summary>
+    public ExtendedParty? UltimateShipTo { get; set; }
+
+    /// <summary>BT-X-85 Delivery date of this line.</summary>
+    public DateTime? DeliveryDate { get; set; }
+
+    /// <summary>BG-X-13 Despatch advice reference.</summary>
+    public LineDocumentReference? DespatchAdvice { get; set; }
+
+    /// <summary>BG-X-82 Receiving advice reference.</summary>
+    public LineDocumentReference? ReceivingAdvice { get; set; }
+
+    /// <summary>BG-X-83 Delivery note reference.</summary>
+    public LineDocumentReference? DeliveryNote { get; set; }
+
+    /// <summary>BT-X-95 VAT amount of this line.</summary>
+    public decimal? VatAmount { get; set; }
+
+    /// <summary>BT-X-96 VAT exemption reason of this line.</summary>
+    public string? VatExemptionReason { get; set; }
+
+    /// <summary>BT-X-97 VAT exemption reason code of this line.</summary>
+    public string? VatExemptionReasonCode { get; set; }
+
+    /// <summary>BT-X-589 VAT point date code of this line.</summary>
+    public string? VatPointDateCode { get; set; }
+
+    /// <summary>BT-X-327 Stated total of the line charges.</summary>
+    public decimal? ChargeTotal { get; set; }
+
+    /// <summary>BT-X-328 Stated total of the line allowances.</summary>
+    public decimal? AllowanceTotal { get; set; }
+
+    /// <summary>BT-X-329 Stated VAT total of the line, in the invoice currency.</summary>
+    public decimal? VatTotal { get; set; }
+
+    /// <summary>BT-X-329-0 Currency of <see cref="VatTotal"/>.</summary>
+    public string? VatTotalCurrency { get; set; }
+
+    /// <summary>BT-X-590 Stated VAT total of the line, in the tax currency.</summary>
+    public decimal? VatTotalInTaxCurrency { get; set; }
+
+    /// <summary>BT-X-590-0 Currency of <see cref="VatTotalInTaxCurrency"/>.</summary>
+    public string? VatTotalInTaxCurrencyCode { get; set; }
+
+    /// <summary>BT-X-330 Stated grand total of the line.</summary>
+    public decimal? GrandTotal { get; set; }
+
+    /// <summary>BT-X-98 Stated total of the line allowances and charges.</summary>
+    public decimal? AllowanceChargeTotal { get; set; }
+
+    /// <summary>BG-X-48 Preceding invoice line.</summary>
+    public LineDocumentReference? PrecedingInvoice { get; set; }
+
+    /// <summary>BT-X-332 Type code of the preceding invoice.</summary>
+    public string? PrecedingInvoiceTypeCode { get; set; }
+
+    /// <summary>BT-X-99 Type code of the line accounting reference.</summary>
+    public string? AccountingTypeCode { get; set; }
+}
+
+/// <summary>A reference from a line to a document, a line in it and its date.</summary>
+public sealed class LineDocumentReference
+{
+    /// <summary>The document number.</summary>
+    public string? Number { get; set; }
+
+    /// <summary>The line in the document.</summary>
+    public string? LineId { get; set; }
+
+    /// <summary>The document date.</summary>
+    public DateTime? Date { get; set; }
+}
+
+/// <summary>BG-X-3 A document referenced by a line.</summary>
+public sealed class LineSupportingDocument
+{
+    /// <summary>BT-X-27 Document number. Mandatory.</summary>
+    public string Number { get; set; } = "";
+
+    /// <summary>BT-X-28 External location.</summary>
+    public string? ExternalLocation { get; set; }
+
+    /// <summary>BT-X-29 Line in the document.</summary>
+    public string? LineId { get; set; }
+
+    /// <summary>BT-X-30 Type code. Mandatory.</summary>
+    public string TypeCode { get; set; } = "916";
+
+    /// <summary>BT-X-299 Description.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>BT-X-31 Attached content.</summary>
+    public byte[]? Content { get; set; }
+
+    /// <summary>BT-X-31-1 Attachment MIME code.</summary>
+    public string? MimeCode { get; set; }
+
+    /// <summary>BT-X-31-2 Attachment file name.</summary>
+    public string? FileName { get; set; }
+
+    /// <summary>BT-X-32 Reference type code.</summary>
+    public string? ReferenceTypeCode { get; set; }
+
+    /// <summary>BT-X-33 Document date.</summary>
+    public DateTime? Date { get; set; }
+}
+
+/// <summary>BG-X-84 An individual instance of a product.</summary>
+public sealed class ProductInstance
+{
+    /// <summary>BT-X-306 Batch identifier.</summary>
+    public string? BatchIdentifier { get; set; }
+
+    /// <summary>BT-X-307 Serial number.</summary>
+    public string? SerialNumber { get; set; }
+}
+
+/// <summary>BG-X-1 An item included in a line's item.</summary>
+public sealed class IncludedProduct
+{
+    /// <summary>BT-X-308 Identifier without a scheme.</summary>
+    public string? Identifier { get; set; }
+
+    /// <summary>BT-X-15 Global identifiers, each with a scheme.</summary>
+    public List<SchemedIdentifier> GlobalIdentifiers { get; } = new();
+
+    /// <summary>BT-X-16 Seller's identifier.</summary>
+    public string? SellersIdentifier { get; set; }
+
+    /// <summary>BT-X-17 Buyer's identifier.</summary>
+    public string? BuyersIdentifier { get; set; }
+
+    /// <summary>BT-X-309 Industry assigned identifier.</summary>
+    public string? IndustryAssignedIdentifier { get; set; }
+
+    /// <summary>BT-X-18 Name. Mandatory.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>BT-X-19 Description.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>BT-X-20 Quantity included.</summary>
+    public decimal? Quantity { get; set; }
+
+    /// <summary>BT-X-20-1 Unit of the quantity.</summary>
+    public string? QuantityUnitCode { get; set; }
+}
+

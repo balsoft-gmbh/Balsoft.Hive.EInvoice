@@ -143,7 +143,10 @@ public static class InvoiceCalculator
     {
         var extension = profile == InvoiceProfile.FacturXExtended ? invoice.Extended : null;
         var lineNets = invoice.Lines.Select(LineNetAmount).ToList();
-        decimal lineTotal = lineNets.Sum();
+        // BR-FXEXT: a line with a status reason other than DETAIL (a group or information line) is not part of the sums.
+        bool Counts(InvoiceLine line) => profile != InvoiceProfile.FacturXExtended
+            || string.IsNullOrWhiteSpace(line.Extended?.LineStatusReasonCode) || line.Extended!.LineStatusReasonCode!.Trim() == "DETAIL";
+        decimal lineTotal = invoice.Lines.Zip(lineNets, (line, net) => Counts(line) ? net : 0m).Sum();
 
         decimal allowances = 0m, charges = 0m;
         foreach (var ac in invoice.AllowancesAndCharges)
@@ -166,7 +169,7 @@ public static class InvoiceCalculator
         }
 
         for (int i = 0; i < invoice.Lines.Count; i++)
-            Add(invoice.Lines[i].VatCategory, invoice.Lines[i].VatRate, lineNets[i]);
+            if (Counts(invoice.Lines[i])) Add(invoice.Lines[i].VatCategory, invoice.Lines[i].VatRate, lineNets[i]);
         foreach (var ac in invoice.AllowancesAndCharges)
             Add(ac.VatCategory, ac.VatRate, ac.IsCharge ? AmountOf(ac) : -AmountOf(ac));
         foreach (var logistics in extension?.LogisticsCharges ?? Enumerable.Empty<LogisticsCharge>())

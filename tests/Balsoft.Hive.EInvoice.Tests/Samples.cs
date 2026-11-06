@@ -465,9 +465,101 @@ public static class Samples
         advance.Taxes.Add(new ExtendedTax { CalculatedAmount = 0m, Category = VatCategory.Exempt, Rate = 0m, ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" });
         inv.Extended.AdvancePayments.Add(advance);
         inv.AddLine(new InvoiceLine("Steuerfreie Leistung", 1m, UnitCode.Piece, 40m, 0m, VatCategory.Exempt));
+        AddExtendedLines(inv, Party);
         inv.VatExemptions.Add(new VatExemption { Category = VatCategory.Exempt, Reason = "Steuerfrei", ReasonCode = "VATEX-EU-G" });
         inv.AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = false, Amount = 5m, Reason = "Treuerabatt", ReasonCode = "95", VatCategory = VatCategory.StandardRate, VatRate = 19m, SequenceNumber = 1m, BaseQuantity = 1m, BaseQuantityUnitCode = "C62" });
         inv.AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = true, Amount = 2m, Reason = "Fracht", ReasonCode = "FC", ReasonCodeListId = "UNTDID7161", VatCategory = VatCategory.Exempt, VatRate = 0m, SequenceNumber = 2m, BaseQuantity = 1m, BaseQuantityUnitCode = "C62", ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" });
         return inv;
+    }
+
+    /// <summary>A group line with a detail line under it, and an information line, with every line level EXTENDED term.</summary>
+    private static void AddExtendedLines(Invoice inv, Func<string, ExtendedParty> party)
+    {
+        var group = inv.AddLine(new InvoiceLine("Baugruppe", 1m, UnitCode.Piece, 100m, 19m) { Id = "G1", Note = "Gruppe" });
+        group.Extended = new InvoiceLineExtension { LineStatusCode = "1", LineStatusReasonCode = "GROUP" };
+
+        var detail = inv.AddLine(new InvoiceLine("Türschließer", 2m, UnitCode.Piece, 50m, 19m)
+        {
+            Id = "G1-1",
+            Note = "Position",
+            OrderLineReference = "20",
+            BuyerAccountingReference = "KST-1",
+            GrossPrice = 55m,
+        });
+        detail.Item.Attributes.Add(new ItemAttribute { Name = "Gewicht", Value = "2 kg", TypeCode = "WEI", ValueMeasure = 2m, ValueMeasureUnitCode = "KGM" });
+        detail.Item.Classifications.Add(new ItemClassification { Code = "72267000", Scheme = "STI", ClassName = "Wartung" });
+        var lx = new InvoiceLineExtension
+        {
+            ParentLineId = "G1",
+            LineStatusCode = "1",
+            LineStatusReasonCode = "DETAIL",
+            NoteContentCode = "ST1",
+            NoteSubjectCode = "AAI",
+            ItemIdentifier = "ARTIKEL-1",
+            IndustryAssignedIdentifier = "IND-1",
+            ModelIdentifier = "M-1",
+            BrandName = "Marke",
+            ModelName = "Modell",
+            Manufacturer = party("Hersteller GmbH"),
+            DeliveryTerms = new DeliveryTerms { Code = "FCA", LocationCountryCode = "DE", LocationName = "Köln" },
+            SalesOrder = new LineDocumentReference { Number = "AB-1", LineId = "1", Date = Issue.AddDays(-20) },
+            PurchaseOrderNumber = "BE-1",
+            PurchaseOrderDate = Issue.AddDays(-21),
+            Quotation = new LineDocumentReference { Number = "ANG-1", LineId = "1", Date = Issue.AddDays(-40) },
+            Contract = new LineDocumentReference { Number = "K-1", LineId = "1", Date = Issue.AddDays(-100) },
+            NetPriceIncludedTax = new ExtendedTax { CalculatedAmount = 9.5m, Category = VatCategory.StandardRate, Rate = 19m },
+            ItemSeller = party("Zweitverkäufer GmbH"),
+            ChargeFreeQuantity = 1m,
+            ChargeFreeQuantityUnitCode = UnitCode.Piece,
+            PackageQuantity = 2m,
+            PackageQuantityUnitCode = UnitCode.Piece,
+            PerPackageUnitQuantity = 1m,
+            PerPackageUnitCode = UnitCode.Piece,
+            ShipTo = party("Lieferort GmbH"),
+            UltimateShipTo = party("Endempfänger GmbH"),
+            DeliveryDate = Issue.AddDays(-3),
+            DespatchAdvice = new LineDocumentReference { Number = "LS-1", LineId = "1", Date = Issue.AddDays(-3) },
+            ReceivingAdvice = new LineDocumentReference { Number = "WE-1", LineId = "1", Date = Issue.AddDays(-2) },
+            DeliveryNote = new LineDocumentReference { Number = "LN-1", LineId = "1", Date = Issue.AddDays(-3) },
+            VatAmount = 19m,
+            VatPointDateCode = "5",
+            ChargeTotal = 0m,
+            AllowanceTotal = 0m,
+            VatTotal = 19m,
+            VatTotalCurrency = "EUR",
+            VatTotalInTaxCurrency = 20.52m,
+            VatTotalInTaxCurrencyCode = "USD",
+            GrandTotal = 119m,
+            AllowanceChargeTotal = 0m,
+            PrecedingInvoice = new LineDocumentReference { Number = "RE-2026-0001", LineId = "1", Date = Issue.AddDays(-30) },
+            PrecedingInvoiceTypeCode = "380",
+            AccountingTypeCode = "1",
+        };
+        lx.Manufacturer!.Description = "Herstellerangaben";
+        lx.ItemSeller!.Description = "Verkäuferangaben";
+        lx.BatchIdentifiers.Add("CHARGE-1");
+        lx.ProductInstances.Add(new ProductInstance { BatchIdentifier = "CHARGE-1", SerialNumber = "SN-1" });
+        var included = new IncludedProduct { Identifier = "TEIL-1", SellersIdentifier = "S-1", BuyersIdentifier = "B-1", IndustryAssignedIdentifier = "I-1", Name = "Schraube", Description = "M4", Quantity = 4m, QuantityUnitCode = UnitCode.Piece };
+        included.GlobalIdentifiers.Add(new SchemedIdentifier("4012345000009", IdentifierScheme.Gtin));
+        lx.IncludedProducts.Add(included);
+        lx.SupportingDocuments.Add(new LineSupportingDocument { Number = "DOK-1", ExternalLocation = "https://balsoft.de/d/1", LineId = "1", TypeCode = "916", Description = "Datenblatt", Date = Issue.AddDays(-9) });
+        lx.SupportingDocuments.Add(new LineSupportingDocument { Number = "OBJ-1", TypeCode = "130", ReferenceTypeCode = "AAG" });
+        lx.SupportingDocuments.Add(new LineSupportingDocument { Number = "DOK-2", TypeCode = "916", Content = System.Text.Encoding.UTF8.GetBytes("a"), MimeCode = "text/csv", FileName = "a.csv" });
+        lx.GrossPriceAllowancesAndCharges.Add(new AllowanceCharge { IsCharge = false, Percentage = 10m, BaseAmount = 60m, Amount = 6m, ReasonCode = "95", Reason = "Rabatt" });
+        lx.GrossPriceAllowancesAndCharges.Add(new AllowanceCharge { IsCharge = true, Percentage = 2m, BaseAmount = 50m, Amount = 1m, ReasonCode = "FC", ReasonCodeListId = "UNTDID7161", Reason = "Zuschlag" });
+        lx.UltimateCustomerOrders.Add(new LineDocumentReference { Number = "EK-1", LineId = "1", Date = Issue.AddDays(-50) });
+        detail.Extended = lx;
+        detail.AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = true, Amount = 0m, Reason = "Abgabe", ReasonCode = "FC", ReasonCodeListId = "UNTDID7161" });
+
+        var information = inv.AddLine(new InvoiceLine("Hinweiszeile", 1m, UnitCode.Piece, 25m, 19m) { Id = "G1-2", Note = "Info" });
+        information.Extended = new InvoiceLineExtension
+        {
+            ParentLineId = "G1",
+            LineStatusCode = "1",
+            LineStatusReasonCode = "INFORMATION",
+            VatExemptionReason = "Nicht steuerbar",
+            VatExemptionReasonCode = "VATEX-EU-O",
+            NetPriceIncludedTax = new ExtendedTax { CalculatedAmount = 0m, Category = VatCategory.Exempt, Rate = 0m, ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" },
+        };
     }
 }

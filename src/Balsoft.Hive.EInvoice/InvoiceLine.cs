@@ -59,6 +59,9 @@ public sealed class InvoiceLine
     /// <summary>BG-31 Item information. Name is mandatory.</summary>
     public Item Item { get; set; } = new();
 
+    /// <summary>Terms that exist only in the Factur-X / ZUGFeRD EXTENDED profile.</summary>
+    public InvoiceLineExtension? Extended { get; set; }
+
     /// <summary>Creates an empty line.</summary>
     public InvoiceLine() { }
 
@@ -106,6 +109,9 @@ public sealed class Item
 /// <summary>BT-158 Item classification identifier.</summary>
 public sealed class ItemClassification
 {
+    /// <summary>BT-X-13 Classification name. EXTENDED only.</summary>
+    public string? ClassName { get; set; }
+
     /// <summary>BT-158 Item classification identifier.</summary>
     public string Code { get; set; } = "";
 
@@ -119,6 +125,15 @@ public sealed class ItemClassification
 /// <summary>BG-32 Item attribute.</summary>
 public sealed class ItemAttribute
 {
+    /// <summary>BT-X-11 Attribute type code. EXTENDED only.</summary>
+    public string? TypeCode { get; set; }
+
+    /// <summary>BT-X-12 Attribute value as a measure. EXTENDED only, where it takes the place of the value (BR-FXEXT-BR-54-2).</summary>
+    public decimal? ValueMeasure { get; set; }
+
+    /// <summary>BT-X-12-0 Unit of the measure. EXTENDED only.</summary>
+    public string? ValueMeasureUnitCode { get; set; }
+
     /// <summary>BT-160 Item attribute name.</summary>
     public string Name { get; set; } = "";
 

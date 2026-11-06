@@ -74,6 +74,8 @@ public static class InvoiceValidator
                 || _inv.Notes.Any(n => Has(n.ContentCode)) || _inv.PrecedingInvoices.Any(p => Has(p.TypeCode))
                 || _inv.SupportingDocuments.Any(d => d.IssueDate.HasValue)
                 || Has(_inv.PaymentInstructions?.DirectDebit?.DebitedAccountName) || Has(_inv.PaymentInstructions?.DirectDebit?.DebitedServiceProviderIdentifier)
+                || _inv.Lines.Any(l => l.Extended is not null || l.Item.Attributes.Any(a => Has(a.TypeCode) || a.ValueMeasure.HasValue) || l.Item.Classifications.Any(c => Has(c.ClassName))
+                    || l.AllowancesAndCharges.Any(a => a.SequenceNumber.HasValue || a.BaseQuantity.HasValue || Has(a.ReasonCodeListId)))
                 || _inv.AllowancesAndCharges.Any(a => a.SequenceNumber.HasValue || a.BaseQuantity.HasValue || Has(a.ReasonCodeListId) || Has(a.ExemptionReason) || Has(a.ExemptionReasonCode));
             if (set) Warn("PROFILE-NOT-WRITTEN", $"{_profile} has no element for the EXTENDED terms; they are not written.", "EXTENDED");
         }
@@ -209,7 +211,7 @@ public static class InvoiceValidator
                 if (Has(l.Item.OriginCountryCode) && !CodeList.IsCountryCode(l.Item.OriginCountryCode))
                     Error("BR-CL-15", $"{where}: '{l.Item.OriginCountryCode}' is not an ISO 3166-1 alpha-2 country code.", "BT-159");
                 foreach (var a in l.Item.Attributes)
-                    if (!Has(a.Name) || !Has(a.Value)) Error("BR-54", $"{where}: each item attribute shall have a name and a value.", "BG-32");
+                    if (!Has(a.Name) || (!Has(a.Value) && !(_profile == InvoiceProfile.FacturXExtended && a.ValueMeasure.HasValue))) Error("BR-54", $"{where}: each item attribute shall have a name and a value.", "BG-32");
                 foreach (var ac in l.AllowancesAndCharges)
                 {
                     string kind = ac.IsCharge ? "charge" : "allowance";

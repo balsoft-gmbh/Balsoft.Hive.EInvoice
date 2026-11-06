@@ -45,9 +45,10 @@ public static class CiiReader
                 inv.Notes.Add(new InvoiceNote(text, note.Element(Ram + "SubjectCode").Value()) { ContentCode = note.Element(Ram + "ContentCode").Value() });
         }
 
+        bool extendedProfile = InvoiceProfileExtensions.TryFromSpecificationIdentifier(spec, out var specProfile) && specProfile == InvoiceProfile.FacturXExtended;
         var transaction = root.Element(Rsm + "SupplyChainTradeTransaction");
         foreach (var line in transaction?.Elements(Ram + "IncludedSupplyChainTradeLineItem") ?? Enumerable.Empty<XElement>())
-            inv.Lines.Add(Line(line));
+            inv.Lines.Add(Line(line, extendedProfile));
 
         Agreement(inv, transaction?.Element(Ram + "ApplicableHeaderTradeAgreement"));
         Delivery(inv, transaction?.Element(Ram + "ApplicableHeaderTradeDelivery"));
@@ -103,16 +104,7 @@ public static class CiiReader
         SettlementExtension(x, s);
         foreach (var r in a?.Elements(Ram + "UltimateCustomerOrderReferencedDocument") ?? Enumerable.Empty<XElement>())
             x.UltimateCustomerOrders.Add(Reference(r)!);
-        if (a?.Element(Ram + "ApplicableTradeDeliveryTerms") is { } terms)
-        {
-            var location = terms.Element(Ram + "RelevantTradeLocation");
-            x.DeliveryTerms = new DeliveryTerms
-            {
-                Code = terms.Element(Ram + "DeliveryTypeCode").Value() ?? "",
-                LocationCountryCode = location?.Element(Ram + "CountryID").Value(),
-                LocationName = location?.Element(Ram + "Name").Value(),
-            };
-        }
+        x.DeliveryTerms = DeliveryTermsOf(a?.Element(Ram + "ApplicableTradeDeliveryTerms"));
         foreach (var movement in d?.Element(Ram + "RelatedSupplyChainConsignment")?.Elements(Ram + "SpecifiedLogisticsTransportMovement") ?? Enumerable.Empty<XElement>())
             if (movement.Element(Ram + "ModeCode").Value() is { } mode) x.TransportModeCodes.Add(mode);
         return x;
@@ -223,12 +215,14 @@ public static class CiiReader
             Identifier = e.Element(Ram + "ID").Value(),
             Name = e.Element(Ram + "Name").Value() ?? "",
             RoleCode = e.Element(Ram + "RoleCode").Value(),
+            Description = e.Element(Ram + "Description").Value(),
             LegalRegistrationIdentifier = Id(legal?.Element(Ram + "ID")),
             TradingName = legal?.Element(Ram + "TradingBusinessName").Value(),
             LegalAddress = legal?.Element(Ram + "PostalTradeAddress") is { } la ? Address(la) : null,
             Address = e.Element(Ram + "PostalTradeAddress") is { } pa ? Address(pa) : null,
             ElectronicAddress = Id(e.Element(Ram + "URIUniversalCommunication")?.Element(Ram + "URIID")),
             VatIdentifier = e.Elements(Ram + "SpecifiedTaxRegistration").Select(t => t.Element(Ram + "ID")).FirstOrDefault(t => t.Attr("schemeID") == "VA").Value(),
+            TaxRegistrationIdentifier = e.Elements(Ram + "SpecifiedTaxRegistration").Select(t => t.Element(Ram + "ID")).FirstOrDefault(t => t.Attr("schemeID") == "FC").Value(),
         };
         foreach (var id in e.Elements(Ram + "GlobalID")) party.GlobalIdentifiers.Add(Id(id)!);
         foreach (var c in e.Elements(Ram + "DefinedTradeContact")) party.Contacts.Add(ContactOf(c));
@@ -239,9 +233,10 @@ public static class CiiReader
         => Date(container?.Element(Udt + "DateTimeString").Value() ?? container?.Element(Udt + "DateString").Value()
                 ?? container?.Element(Qdt + "DateTimeString").Value());
 
-    private static InvoiceLine Line(XElement item)
+    private static InvoiceLine Line(XElement item, bool extendedProfile)
     {
         var line = new InvoiceLine();
+        if (extendedProfile) line.Extended = LineExtension(item);
         var doc = item.Element(Ram + "AssociatedDocumentLineDocument");
         line.Id = doc?.Element(Ram + "LineID").Value() ?? "";
         line.Note = doc?.Element(Ram + "IncludedNote")?.Element(Ram + "Content").Value();
@@ -253,11 +248,11 @@ public static class CiiReader
         line.Item.Name = product?.Element(Ram + "Name").Value() ?? "";
         line.Item.Description = product?.Element(Ram + "Description").Value();
         foreach (var c in product?.Elements(Ram + "ApplicableProductCharacteristic") ?? Enumerable.Empty<XElement>())
-            line.Item.Attributes.Add(new ItemAttribute { Name = c.Element(Ram + "Description").Value() ?? "", Value = c.Element(Ram + "Value").Value() ?? "" });
+            line.Item.Attributes.Add(new ItemAttribute { TypeCode = c.Element(Ram + "TypeCode").Value(), ValueMeasure = c.Element(Ram + "ValueMeasure").Decimal(), ValueMeasureUnitCode = c.Element(Ram + "ValueMeasure").Attr("unitCode"), Name = c.Element(Ram + "Description").Value() ?? "", Value = c.Element(Ram + "Value").Value() ?? "" });
         foreach (var c in product?.Elements(Ram + "DesignatedProductClassification") ?? Enumerable.Empty<XElement>())
         {
             var code = c.Element(Ram + "ClassCode");
-            line.Item.Classifications.Add(new ItemClassification { Code = code.Value() ?? "", Scheme = code.Attr("listID") ?? "", SchemeVersion = code.Attr("listVersionID") });
+            line.Item.Classifications.Add(new ItemClassification { ClassName = c.Element(Ram + "ClassName").Value(), Code = code.Value() ?? "", Scheme = code.Attr("listID") ?? "", SchemeVersion = code.Attr("listVersionID") });
         }
         line.Item.OriginCountryCode = product?.Element(Ram + "OriginTradeCountry")?.Element(Ram + "ID").Value();
 
@@ -297,6 +292,130 @@ public static class CiiReader
         }
         line.BuyerAccountingReference = settlement?.Element(Ram + "ReceivableSpecifiedTradeAccountingAccount")?.Element(Ram + "ID").Value();
         return line;
+    }
+
+    private static LineDocumentReference? LineReference(XElement? e)
+        => e is null ? null : new LineDocumentReference { Number = e.Element(Ram + "IssuerAssignedID").Value(), LineId = e.Element(Ram + "LineID").Value(), Date = ReferenceDate(e) };
+
+    private static DeliveryTerms? DeliveryTermsOf(XElement? terms)
+    {
+        if (terms is null) return null;
+        var location = terms.Element(Ram + "RelevantTradeLocation");
+        return new DeliveryTerms
+        {
+            Code = terms.Element(Ram + "DeliveryTypeCode").Value() ?? "",
+            LocationCountryCode = location?.Element(Ram + "CountryID").Value(),
+            LocationName = location?.Element(Ram + "Name").Value(),
+        };
+    }
+
+    private static InvoiceLineExtension LineExtension(XElement item)
+    {
+        var doc = item.Element(Ram + "AssociatedDocumentLineDocument");
+        var note = doc?.Element(Ram + "IncludedNote");
+        var product = item.Element(Ram + "SpecifiedTradeProduct");
+        var agreement = item.Element(Ram + "SpecifiedLineTradeAgreement");
+        var order = agreement?.Element(Ram + "BuyerOrderReferencedDocument");
+        var net = agreement?.Element(Ram + "NetPriceProductTradePrice");
+        var delivery = item.Element(Ram + "SpecifiedLineTradeDelivery");
+        var settlement = item.Element(Ram + "SpecifiedLineTradeSettlement");
+        var tax = settlement?.Element(Ram + "ApplicableTradeTax");
+        var sum = settlement?.Element(Ram + "SpecifiedTradeSettlementLineMonetarySummation");
+        var preceding = settlement?.Element(Ram + "InvoiceReferencedDocument");
+        var vatTotals = sum?.Elements(Ram + "TaxTotalAmount").ToList() ?? new();
+        var x = new InvoiceLineExtension
+        {
+            ParentLineId = doc?.Element(Ram + "ParentLineID").Value(),
+            LineStatusCode = doc?.Element(Ram + "LineStatusCode").Value(),
+            LineStatusReasonCode = doc?.Element(Ram + "LineStatusReasonCode").Value(),
+            NoteContentCode = note?.Element(Ram + "ContentCode").Value(),
+            NoteSubjectCode = note?.Element(Ram + "SubjectCode").Value(),
+            ItemIdentifier = product?.Element(Ram + "ID").Value(),
+            IndustryAssignedIdentifier = product?.Element(Ram + "IndustryAssignedID").Value(),
+            ModelIdentifier = product?.Element(Ram + "ModelID").Value(),
+            BrandName = product?.Element(Ram + "BrandName").Value(),
+            ModelName = product?.Element(Ram + "ModelName").Value(),
+            Manufacturer = ExtendedPartyOf(product?.Element(Ram + "ManufacturerTradeParty")),
+            DeliveryTerms = DeliveryTermsOf(agreement?.Element(Ram + "ApplicableTradeDeliveryTerms")),
+            SalesOrder = LineReference(agreement?.Element(Ram + "SellerOrderReferencedDocument")),
+            PurchaseOrderNumber = order?.Element(Ram + "IssuerAssignedID").Value(),
+            PurchaseOrderDate = ReferenceDate(order),
+            Quotation = LineReference(agreement?.Element(Ram + "QuotationReferencedDocument")),
+            Contract = LineReference(agreement?.Element(Ram + "ContractReferencedDocument")),
+            NetPriceIncludedTax = net?.Element(Ram + "IncludedTradeTax") is { } included ? ExtendedTaxOf(included) : null,
+            ItemSeller = ExtendedPartyOf(agreement?.Element(Ram + "ItemSellerTradeParty")),
+            ChargeFreeQuantity = delivery?.Element(Ram + "ChargeFreeQuantity").Decimal(),
+            ChargeFreeQuantityUnitCode = delivery?.Element(Ram + "ChargeFreeQuantity").Attr("unitCode"),
+            PackageQuantity = delivery?.Element(Ram + "PackageQuantity").Decimal(),
+            PackageQuantityUnitCode = delivery?.Element(Ram + "PackageQuantity").Attr("unitCode"),
+            PerPackageUnitQuantity = delivery?.Element(Ram + "PerPackageUnitQuantity").Decimal(),
+            PerPackageUnitCode = delivery?.Element(Ram + "PerPackageUnitQuantity").Attr("unitCode"),
+            ShipTo = ExtendedPartyOf(delivery?.Element(Ram + "ShipToTradeParty")),
+            UltimateShipTo = ExtendedPartyOf(delivery?.Element(Ram + "UltimateShipToTradeParty")),
+            DeliveryDate = DateTimeOf(delivery?.Element(Ram + "ActualDeliverySupplyChainEvent")?.Element(Ram + "OccurrenceDateTime")),
+            DespatchAdvice = LineReference(delivery?.Element(Ram + "DespatchAdviceReferencedDocument")),
+            ReceivingAdvice = LineReference(delivery?.Element(Ram + "ReceivingAdviceReferencedDocument")),
+            DeliveryNote = LineReference(delivery?.Element(Ram + "DeliveryNoteReferencedDocument")),
+            VatAmount = tax?.Element(Ram + "CalculatedAmount").Decimal(),
+            VatExemptionReason = tax?.Element(Ram + "ExemptionReason").Value(),
+            VatExemptionReasonCode = tax?.Element(Ram + "ExemptionReasonCode").Value(),
+            VatPointDateCode = tax?.Element(Ram + "DueDateTypeCode").Value(),
+            ChargeTotal = sum?.Element(Ram + "ChargeTotalAmount").Decimal(),
+            AllowanceTotal = sum?.Element(Ram + "AllowanceTotalAmount").Decimal(),
+            VatTotal = vatTotals.ElementAtOrDefault(0).Decimal(),
+            VatTotalCurrency = vatTotals.ElementAtOrDefault(0).Attr("currencyID"),
+            VatTotalInTaxCurrency = vatTotals.ElementAtOrDefault(1).Decimal(),
+            VatTotalInTaxCurrencyCode = vatTotals.ElementAtOrDefault(1).Attr("currencyID"),
+            GrandTotal = sum?.Element(Ram + "GrandTotalAmount").Decimal(),
+            AllowanceChargeTotal = sum?.Element(Ram + "TotalAllowanceChargeAmount").Decimal(),
+            PrecedingInvoice = LineReference(preceding),
+            PrecedingInvoiceTypeCode = preceding?.Element(Ram + "TypeCode").Value(),
+            AccountingTypeCode = settlement?.Element(Ram + "ReceivableSpecifiedTradeAccountingAccount")?.Element(Ram + "TypeCode").Value(),
+        };
+        foreach (var batch in product?.Elements(Ram + "BatchID") ?? Enumerable.Empty<XElement>())
+            if (batch.Value() is { } value) x.BatchIdentifiers.Add(value);
+        foreach (var instance in product?.Elements(Ram + "IndividualTradeProductInstance") ?? Enumerable.Empty<XElement>())
+            x.ProductInstances.Add(new ProductInstance { BatchIdentifier = instance.Element(Ram + "BatchID").Value(), SerialNumber = instance.Element(Ram + "SupplierAssignedSerialID").Value() });
+        foreach (var p in product?.Elements(Ram + "IncludedReferencedProduct") ?? Enumerable.Empty<XElement>())
+        {
+            var includedProduct = new IncludedProduct
+            {
+                Identifier = p.Element(Ram + "ID").Value(),
+                SellersIdentifier = p.Element(Ram + "SellerAssignedID").Value(),
+                BuyersIdentifier = p.Element(Ram + "BuyerAssignedID").Value(),
+                IndustryAssignedIdentifier = p.Element(Ram + "IndustryAssignedID").Value(),
+                Name = p.Element(Ram + "Name").Value() ?? "",
+                Description = p.Element(Ram + "Description").Value(),
+                Quantity = p.Element(Ram + "UnitQuantity").Decimal(),
+                QuantityUnitCode = p.Element(Ram + "UnitQuantity").Attr("unitCode"),
+            };
+            foreach (var id in p.Elements(Ram + "GlobalID")) includedProduct.GlobalIdentifiers.Add(Id(id)!);
+            x.IncludedProducts.Add(includedProduct);
+        }
+        foreach (var r in agreement?.Elements(Ram + "AdditionalReferencedDocument") ?? Enumerable.Empty<XElement>())
+        {
+            var attachment = r.Element(Ram + "AttachmentBinaryObject");
+            x.SupportingDocuments.Add(new LineSupportingDocument
+            {
+                Number = r.Element(Ram + "IssuerAssignedID").Value() ?? "",
+                ExternalLocation = r.Element(Ram + "URIID").Value(),
+                LineId = r.Element(Ram + "LineID").Value(),
+                TypeCode = r.Element(Ram + "TypeCode").Value() ?? "",
+                Description = r.Element(Ram + "Name").Value(),
+                Content = attachment.Value() is { } b64 ? Convert.FromBase64String(b64) : null,
+                MimeCode = attachment.Attr("mimeCode"),
+                FileName = attachment.Attr("filename"),
+                ReferenceTypeCode = r.Element(Ram + "ReferenceTypeCode").Value(),
+                Date = ReferenceDate(r),
+            });
+        }
+        foreach (var ac in agreement?.Element(Ram + "GrossPriceProductTradePrice")?.Elements(Ram + "AppliedTradeAllowanceCharge") ?? Enumerable.Empty<XElement>())
+            if (ac.Element(Ram + "CalculationPercent") is not null || ac.Element(Ram + "BasisAmount") is not null || ac.Element(Ram + "Reason") is not null || ac.Element(Ram + "ReasonCode") is not null
+                || Truthy(ac.Element(Ram + "ChargeIndicator")?.Element(Udt + "Indicator").Value()))
+                x.GrossPriceAllowancesAndCharges.Add(AllowanceCharge(ac));
+        foreach (var r in agreement?.Elements(Ram + "UltimateCustomerOrderReferencedDocument") ?? Enumerable.Empty<XElement>())
+            x.UltimateCustomerOrders.Add(LineReference(r)!);
+        return x;
     }
 
     private static Period? Period(XElement? e)

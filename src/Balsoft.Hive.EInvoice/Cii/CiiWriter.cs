@@ -162,20 +162,27 @@ public static class CiiWriter
 
         private void Line(InvoiceLine line, decimal netAmount, int index)
         {
+            var lx = _extended ? line.Extended : null;
             Start("IncludedSupplyChainTradeLineItem");
 
             Start("AssociatedDocumentLineDocument");
             Text("LineID", string.IsNullOrWhiteSpace(line.Id) ? (index + 1).ToString(CultureInfo.InvariantCulture) : line.Id);
+            Text("ParentLineID", lx?.ParentLineId);
+            Text("LineStatusCode", lx?.LineStatusCode);
+            Text("LineStatusReasonCode", lx?.LineStatusReasonCode);
             if (!string.IsNullOrWhiteSpace(line.Note))
             {
                 Start("IncludedNote");
+                Text("ContentCode", lx?.NoteContentCode);
                 Text("Content", line.Note);
+                Text("SubjectCode", lx?.NoteSubjectCode);
                 End();
             }
             End();
 
             var item = line.Item;
             Start("SpecifiedTradeProduct");
+            Text("ID", lx?.ItemIdentifier);
             if (item.StandardIdentifier is { } gid && !string.IsNullOrWhiteSpace(gid.Value))
                 Text("GlobalID", gid.Value, "schemeID", gid.Scheme);
             if (_full)
@@ -183,15 +190,26 @@ public static class CiiWriter
                 Text("SellerAssignedID", item.SellersIdentifier);
                 Text("BuyerAssignedID", item.BuyersIdentifier);
             }
+            Text("IndustryAssignedID", lx?.IndustryAssignedIdentifier);
+            Text("ModelID", lx?.ModelIdentifier);
             Text("Name", item.Name);
             if (_full)
             {
                 Text("Description", item.Description);
+                if (lx is not null)
+                {
+                    foreach (string batch in lx.BatchIdentifiers) Text("BatchID", batch);
+                    Text("BrandName", lx.BrandName);
+                    Text("ModelName", lx.ModelName);
+                }
                 foreach (var a in item.Attributes)
                 {
                     Start("ApplicableProductCharacteristic");
+                    if (_extended) Text("TypeCode", a.TypeCode);
                     Text("Description", a.Name);
-                    Text("Value", a.Value);
+                    // BR-FXEXT-BR-54-2: a value or a measure, not both.
+                    if (_extended && a.ValueMeasure is { } measure) Text("ValueMeasure", Quantity(measure), "unitCode", a.ValueMeasureUnitCode);
+                    else Text("Value", a.Value);
                     End();
                 }
                 foreach (var c in item.Classifications)
@@ -202,53 +220,140 @@ public static class CiiWriter
                     if (!string.IsNullOrWhiteSpace(c.SchemeVersion)) _x.WriteAttributeString("listVersionID", c.SchemeVersion);
                     _x.WriteString(c.Code);
                     _x.WriteEndElement();
+                    if (_extended) Text("ClassName", c.ClassName);
                     End();
                 }
+                if (lx is not null)
+                    foreach (var instance in lx.ProductInstances)
+                    {
+                        Start("IndividualTradeProductInstance");
+                        Text("BatchID", instance.BatchIdentifier);
+                        Text("SupplierAssignedSerialID", instance.SerialNumber);
+                        End();
+                    }
                 if (!string.IsNullOrWhiteSpace(item.OriginCountryCode))
                 {
                     Start("OriginTradeCountry");
                     Text("ID", item.OriginCountryCode);
                     End();
                 }
+                if (lx is not null)
+                {
+                    ExtendedPartyElement("ManufacturerTradeParty", lx.Manufacturer, lineLevel: true);
+                    foreach (var included in lx.IncludedProducts)
+                    {
+                        Start("IncludedReferencedProduct");
+                        Text("ID", included.Identifier);
+                        foreach (var id in included.GlobalIdentifiers.Where(i => Has(i.Value)))
+                            Text("GlobalID", id.Value, "schemeID", id.Scheme);
+                        Text("SellerAssignedID", included.SellersIdentifier);
+                        Text("BuyerAssignedID", included.BuyersIdentifier);
+                        Text("IndustryAssignedID", included.IndustryAssignedIdentifier);
+                        Text("Name", included.Name);
+                        Text("Description", included.Description);
+                        if (included.Quantity is { } unitQuantity) Text("UnitQuantity", Quantity(unitQuantity), "unitCode", included.QuantityUnitCode);
+                        End();
+                    }
+                }
             }
             End();
 
             Start("SpecifiedLineTradeAgreement");
-            if (_full && !string.IsNullOrWhiteSpace(line.OrderLineReference))
+            DeliveryTermsElement(lx?.DeliveryTerms);
+            LineReference("SellerOrderReferencedDocument", lx?.SalesOrder);
+            if ((_full && !string.IsNullOrWhiteSpace(line.OrderLineReference)) || Has(lx?.PurchaseOrderNumber) || lx?.PurchaseOrderDate is not null)
             {
                 Start("BuyerOrderReferencedDocument");
+                Text("IssuerAssignedID", lx?.PurchaseOrderNumber);
                 Text("LineID", line.OrderLineReference);
+                if (lx?.PurchaseOrderDate is { } orderDate) FormattedDate(orderDate);
                 End();
             }
+            LineReference("QuotationReferencedDocument", lx?.Quotation);
+            LineReference("ContractReferencedDocument", lx?.Contract);
+            if (lx is not null)
+                foreach (var document in lx.SupportingDocuments)
+                {
+                    Start("AdditionalReferencedDocument");
+                    Text("IssuerAssignedID", document.Number);
+                    Text("URIID", document.ExternalLocation);
+                    Text("LineID", document.LineId);
+                    Text("TypeCode", document.TypeCode);
+                    Text("Name", document.Description);
+                    if (document.Content is { Length: > 0 } content) Attachment(content, document.MimeCode, document.FileName ?? document.Number);
+                    Text("ReferenceTypeCode", document.ReferenceTypeCode);
+                    if (document.Date is { } documentDate) FormattedDate(documentDate);
+                    End();
+                }
             if (line.GrossPrice is { } gross)
             {
                 Start("GrossPriceProductTradePrice");
                 Text("ChargeAmount", Price(gross));
                 BaseQuantity(line);
-                decimal discount = line.PriceDiscount ?? gross - line.NetPrice;
-                if (discount != 0m)
+                if (lx is { GrossPriceAllowancesAndCharges.Count: > 0 })
                 {
-                    Start("AppliedTradeAllowanceCharge");
-                    Indicator(false);
-                    Text("ActualAmount", Price(discount));
-                    End();
+                    foreach (var ac in lx.GrossPriceAllowancesAndCharges)
+                    {
+                        Start("AppliedTradeAllowanceCharge");
+                        Indicator(ac.IsCharge);
+                        if (ac.Percentage is { } pricePercent) Text("CalculationPercent", Percent(pricePercent));
+                        if (ac.BaseAmount is { } priceBase) Text("BasisAmount", Price(priceBase));
+                        Text("ActualAmount", Price(ac.Amount ?? InvoiceCalculator.AmountOf(ac)));
+                        Text("ReasonCode", ac.ReasonCode, "listID", ac.ReasonCodeListId);
+                        Text("Reason", ac.Reason);
+                        End();
+                    }
+                }
+                else
+                {
+                    decimal discount = line.PriceDiscount ?? gross - line.NetPrice;
+                    if (discount != 0m)
+                    {
+                        Start("AppliedTradeAllowanceCharge");
+                        Indicator(false);
+                        Text("ActualAmount", Price(discount));
+                        End();
+                    }
                 }
                 End();
             }
             Start("NetPriceProductTradePrice");
             Text("ChargeAmount", Price(line.NetPrice));
             BaseQuantity(line);
+            if (lx?.NetPriceIncludedTax is { } includedTax) ExtendedTaxElement("IncludedTradeTax", includedTax);
             End();
+            ExtendedPartyElement("ItemSellerTradeParty", lx?.ItemSeller, lineLevel: true);
+            if (lx is not null)
+                foreach (var order in lx.UltimateCustomerOrders)
+                    LineReference("UltimateCustomerOrderReferencedDocument", order);
             End();
 
             Start("SpecifiedLineTradeDelivery");
             Text("BilledQuantity", Quantity(line.Quantity), "unitCode", line.UnitCode);
+            if (lx?.ChargeFreeQuantity is { } free) Text("ChargeFreeQuantity", Quantity(free), "unitCode", lx.ChargeFreeQuantityUnitCode);
+            if (lx?.PackageQuantity is { } packages) Text("PackageQuantity", Quantity(packages), "unitCode", lx.PackageQuantityUnitCode);
+            if (lx?.PerPackageUnitQuantity is { } perPackage) Text("PerPackageUnitQuantity", Quantity(perPackage), "unitCode", lx.PerPackageUnitCode);
+            ExtendedPartyElement("ShipToTradeParty", lx?.ShipTo, lineLevel: true);
+            ExtendedPartyElement("UltimateShipToTradeParty", lx?.UltimateShipTo, lineLevel: true);
+            if (lx?.DeliveryDate is { } delivered)
+            {
+                Start("ActualDeliverySupplyChainEvent");
+                DateTimeElement("OccurrenceDateTime", delivered);
+                End();
+            }
+            LineReference("DespatchAdviceReferencedDocument", lx?.DespatchAdvice);
+            LineReference("ReceivingAdviceReferencedDocument", lx?.ReceivingAdvice);
+            LineReference("DeliveryNoteReferencedDocument", lx?.DeliveryNote);
             End();
 
             Start("SpecifiedLineTradeSettlement");
             Start("ApplicableTradeTax");
+            if (lx?.VatAmount is { } lineVat) Text("CalculatedAmount", Amount(lineVat));
             Text("TypeCode", "VAT");
+            Text("ExemptionReason", lx?.VatExemptionReason);
             Text("CategoryCode", line.VatCategory.ToCode());
+            Text("ExemptionReasonCode", lx?.VatExemptionReasonCode);
+            Text("DueDateTypeCode", lx?.VatPointDateCode);
             if (InvoiceCalculator.EffectiveRate(line.VatCategory, line.VatRate) is { } rate)
                 Text("RateApplicablePercent", Percent(rate));
             End();
@@ -257,7 +362,25 @@ public static class CiiWriter
                 AllowanceCharge(ac, withTax: false);
             Start("SpecifiedTradeSettlementLineMonetarySummation");
             Text("LineTotalAmount", Amount(netAmount));
+            if (lx is not null)
+            {
+                if (lx.ChargeTotal is { } lineCharges) Text("ChargeTotalAmount", Amount(lineCharges));
+                if (lx.AllowanceTotal is { } lineAllowances) Text("AllowanceTotalAmount", Amount(lineAllowances));
+                if (lx.VatTotal is { } lineVatTotal) Text("TaxTotalAmount", Amount(lineVatTotal), "currencyID", lx.VatTotalCurrency);
+                if (lx.VatTotalInTaxCurrency is { } lineVatInTax) Text("TaxTotalAmount", Amount(lineVatInTax), "currencyID", lx.VatTotalInTaxCurrencyCode);
+                if (lx.GrandTotal is { } lineGrand) Text("GrandTotalAmount", Amount(lineGrand));
+                if (lx.AllowanceChargeTotal is { } lineAc) Text("TotalAllowanceChargeAmount", Amount(lineAc));
+            }
             End();
+            if (lx?.PrecedingInvoice is { } preceding)
+            {
+                Start("InvoiceReferencedDocument");
+                Text("IssuerAssignedID", preceding.Number);
+                Text("LineID", preceding.LineId);
+                Text("TypeCode", lx.PrecedingInvoiceTypeCode);
+                if (preceding.Date is { } precedingDate) FormattedDate(precedingDate);
+                End();
+            }
             if (_full && line.ObjectIdentifier is { } obj && !string.IsNullOrWhiteSpace(obj.Value))
             {
                 Start("AdditionalReferencedDocument");
@@ -270,10 +393,45 @@ public static class CiiWriter
             {
                 Start("ReceivableSpecifiedTradeAccountingAccount");
                 Text("ID", line.BuyerAccountingReference);
+                Text("TypeCode", lx?.AccountingTypeCode);
                 End();
             }
             End();
 
+            End();
+        }
+
+        private void LineReference(string element, LineDocumentReference? reference)
+        {
+            if (reference is null) return;
+            Start(element);
+            Text("IssuerAssignedID", reference.Number);
+            Text("LineID", reference.LineId);
+            if (reference.Date is { } date) FormattedDate(date);
+            End();
+        }
+
+        private void Attachment(byte[] content, string? mimeCode, string fileName)
+        {
+            _x.WriteStartElement("ram", "AttachmentBinaryObject", Ram);
+            _x.WriteAttributeString("mimeCode", mimeCode ?? "application/pdf");
+            _x.WriteAttributeString("filename", fileName);
+            _x.WriteString(Convert.ToBase64String(content));
+            _x.WriteEndElement();
+        }
+
+        private void DeliveryTermsElement(DeliveryTerms? terms)
+        {
+            if (terms is null) return;
+            Start("ApplicableTradeDeliveryTerms");
+            Text("DeliveryTypeCode", terms.Code);
+            if (Has(terms.LocationCountryCode) || Has(terms.LocationName))
+            {
+                Start("RelevantTradeLocation");
+                Text("CountryID", terms.LocationCountryCode);
+                Text("Name", terms.LocationName);
+                End();
+            }
             End();
         }
 
@@ -308,19 +466,7 @@ public static class CiiWriter
             }
 
             ExtendedPartyElement("ProductEndUserTradeParty", _ext?.ProductEndUser);
-            if (_ext?.DeliveryTerms is { } terms)
-            {
-                Start("ApplicableTradeDeliveryTerms");
-                Text("DeliveryTypeCode", terms.Code);
-                if (Has(terms.LocationCountryCode) || Has(terms.LocationName))
-                {
-                    Start("RelevantTradeLocation");
-                    Text("CountryID", terms.LocationCountryCode);
-                    Text("Name", terms.LocationName);
-                    End();
-                }
-                End();
-            }
+            DeliveryTermsElement(_ext?.DeliveryTerms);
 
             if (_full) ReferencedId("SellerOrderReferencedDocument", _inv.SalesOrderReference, _ext?.SalesOrderDate);
             ReferencedId("BuyerOrderReferencedDocument", _inv.PurchaseOrderReference, _ext?.PurchaseOrderDate);
@@ -468,7 +614,7 @@ public static class CiiWriter
             End();
         }
 
-        private void ExtendedPartyElement(string element, ExtendedParty? party)
+        private void ExtendedPartyElement(string element, ExtendedParty? party, bool lineLevel = false)
         {
             if (party is null) return;
             Start(element);
@@ -477,13 +623,16 @@ public static class CiiWriter
                 Text("GlobalID", id.Value, "schemeID", id.Scheme);
             Text("Name", party.Name);
             Text("RoleCode", party.RoleCode);
+            Text("Description", party.Description);
             bool hasLegalId = party.LegalRegistrationIdentifier is { } l && Has(l.Value);
-            if (hasLegalId || Has(party.TradingName) || party.LegalAddress is not null)
+            // The official list has the legal address at document level only.
+            var legalAddress = lineLevel ? null : party.LegalAddress;
+            if (hasLegalId || Has(party.TradingName) || legalAddress is not null)
             {
                 Start("SpecifiedLegalOrganization");
                 if (hasLegalId) Text("ID", party.LegalRegistrationIdentifier!.Value, "schemeID", party.LegalRegistrationIdentifier.Scheme);
                 Text("TradingBusinessName", party.TradingName);
-                if (party.LegalAddress is not null) Address(party.LegalAddress);
+                if (legalAddress is not null) Address(legalAddress);
                 End();
             }
             foreach (var contact in party.Contacts) ContactElement(contact);
@@ -495,6 +644,7 @@ public static class CiiWriter
                 End();
             }
             TaxRegistration("VA", party.VatIdentifier);
+            TaxRegistration("FC", party.TaxRegistrationIdentifier);
             End();
         }
 

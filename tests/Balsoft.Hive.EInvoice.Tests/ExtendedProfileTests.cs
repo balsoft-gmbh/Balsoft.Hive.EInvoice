@@ -44,6 +44,18 @@ public class ExtendedProfileTests
         foreach (var note in inv.Notes) note.ContentCode = null;
         foreach (var preceding in inv.PrecedingInvoices) preceding.TypeCode = null;
         foreach (var document in inv.SupportingDocuments) document.IssueDate = null;
+        foreach (var line in inv.Lines)
+        {
+            line.Extended = null;
+            foreach (var attribute in line.Item.Attributes)
+            {
+                attribute.TypeCode = null;
+                attribute.ValueMeasure = null;
+                attribute.ValueMeasureUnitCode = null;
+            }
+            foreach (var classification in line.Item.Classifications) classification.ClassName = null;
+            foreach (var ac in line.AllowancesAndCharges) ac.ReasonCodeListId = null;
+        }
         foreach (var ac in inv.AllowancesAndCharges)
         {
             ac.SequenceNumber = null;
@@ -100,8 +112,9 @@ public class ExtendedProfileTests
     public void TheExtendedShipToKeepsTheDeliveryDate()
     {
         var doc = Cii(Samples.ExtendedFull(), Extended);
-        Assert.Equal("Ship To GmbH", doc.Descendants(Ram + "ShipToTradeParty").Single().Element(Ram + "Name")!.Value);
-        Assert.Single(doc.Descendants(Ram + "ActualDeliverySupplyChainEvent"));
+        var delivery = doc.Descendants(Ram + "ApplicableHeaderTradeDelivery").Single();
+        Assert.Equal("Ship To GmbH", delivery.Elements(Ram + "ShipToTradeParty").Single().Element(Ram + "Name")!.Value);
+        Assert.Single(delivery.Elements(Ram + "ActualDeliverySupplyChainEvent"));
     }
 
     [Fact]
@@ -145,11 +158,14 @@ public class ExtendedProfileTests
     public void LogisticsChargesCountAsChargesAndInTheVatBasisUnderExtendedOnly()
     {
         var inv = Samples.ExtendedFull();
+        var with = InvoiceCalculator.Calculate(inv, Extended);
         var other = InvoiceCalculator.Calculate(inv, InvoiceProfile.EN16931);
-        var extended = InvoiceCalculator.Calculate(inv, Extended);
-        Assert.Equal(other.ChargeTotal + 17m, extended.ChargeTotal);
-        Assert.Equal(other.TaxExclusiveAmount + 17m, extended.TaxExclusiveAmount);
-        Assert.Equal(other.VatTotal + InvoiceCalculator.Round(12m * 19m / 100m), extended.VatTotal);
+        inv.Extended!.LogisticsCharges.Clear();
+        var without = InvoiceCalculator.Calculate(inv, Extended);
+        Assert.Equal(without.ChargeTotal + 17m, with.ChargeTotal);
+        Assert.Equal(without.TaxExclusiveAmount + 17m, with.TaxExclusiveAmount);
+        Assert.Equal(without.VatTotal + InvoiceCalculator.Round(12m * 19m / 100m), with.VatTotal);
+        Assert.Equal(InvoiceCalculator.Calculate(inv, InvoiceProfile.EN16931).ChargeTotal, other.ChargeTotal);
     }
 
     [Fact]
@@ -179,6 +195,51 @@ public class ExtendedProfileTests
     [Fact]
     public void TheStatedTotalsOfAnExtendedDocumentReadBackWithoutDiscrepancies()
         => Assert.Empty(InvoiceReader.Read(CiiWriter.Write(Samples.ExtendedFull(), Extended)).TotalsDiscrepancies());
+
+    [Fact]
+    public void GroupAndInformationLinesAreNotInTheTotalsUnderExtended()
+    {
+        var inv = Samples.ExtendedFull();
+        var totals = InvoiceCalculator.Calculate(inv, Extended);
+        decimal expected = inv.Lines.Where(l => l.Extended?.LineStatusReasonCode is null or "DETAIL").Sum(InvoiceCalculator.LineNetAmount);
+        Assert.Equal(expected, totals.LineNetTotal);
+        Assert.Equal(inv.Lines.Count, totals.LineNetAmounts.Count);
+    }
+
+    [Fact]
+    public void AGroupLineStaysInTheTotalsOfOtherProfiles()
+    {
+        var inv = Samples.ExtendedFull();
+        Assert.Equal(inv.Lines.Sum(InvoiceCalculator.LineNetAmount), InvoiceCalculator.Calculate(inv, InvoiceProfile.EN16931).LineNetTotal);
+    }
+
+    [Fact]
+    public void LineTermsAreWrittenOnlyForTheirLine()
+    {
+        var lines = Cii(Samples.ExtendedFull(), Extended).Descendants(Ram + "IncludedSupplyChainTradeLineItem").ToList();
+        var detail = lines.Single(l => l.Descendants(Ram + "LineID").First().Value == "G1-1");
+        Assert.Equal("G1", detail.Descendants(Ram + "ParentLineID").Single().Value);
+        Assert.Single(lines, l => l.Descendants(Ram + "ManufacturerTradeParty").Any());
+    }
+
+    [Fact]
+    public void ALineLevelPartyIgnoresALegalAddress()
+    {
+        var manufacturer = Cii(Samples.ExtendedFull(), Extended).Descendants(Ram + "ManufacturerTradeParty").Single();
+        Assert.Empty(manufacturer.Elements(Ram + "SpecifiedLegalOrganization").Elements(Ram + "PostalTradeAddress"));
+    }
+
+    [Fact]
+    public void AnAttributeWritesAValueOrAMeasureNeverBoth()
+    {
+        var attributes = Cii(Samples.ExtendedFull(), Extended).Descendants(Ram + "ApplicableProductCharacteristic").ToList();
+        Assert.All(attributes, a => Assert.True(a.Element(Ram + "Value") is null != (a.Element(Ram + "ValueMeasure") is null)));
+        Assert.Contains(attributes, a => a.Element(Ram + "ValueMeasure") is not null);
+    }
+
+    [Fact]
+    public void OtherProfilesWriteTheValueOfAnAttributeWithAMeasure()
+        => Assert.Contains(Cii(Samples.ExtendedFull(), InvoiceProfile.EN16931).Descendants(Ram + "Value"), v => v.Value == "2 kg");
 
     [Fact]
     public void AFalseIndicatorIsWritten()

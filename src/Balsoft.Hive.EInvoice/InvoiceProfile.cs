@@ -29,8 +29,8 @@ public enum InvoiceProfile
     FacturXMinimum,
 
     /// <summary>
-    /// Factur-X / ZUGFeRD profile EXTENDED: the EN 16931 content plus <see cref="Invoice.Extended"/>.
-    /// Line level EXTENDED terms are not modelled yet.
+    /// Factur-X / ZUGFeRD profile EXTENDED: the EN 16931 content plus <see cref="Invoice.Extended"/> and
+    /// <see cref="InvoiceLine.Extended"/>.
     /// </summary>
     FacturXExtended,
 
