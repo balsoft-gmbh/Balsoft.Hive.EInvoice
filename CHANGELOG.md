@@ -9,8 +9,8 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - `Contact.Department`: BT-41 / BT-56 as a department. CII writes `DepartmentName` next to `PersonName`; UBL has one
   element, which takes the name, else the department. BR-DE-5 accepts either.
-- Factur-X MINIMUM writes BT-23 and the buyer country (BT-55) when set. `Invoice.BusinessProcess` has a default, so MINIMUM
-  output now carries BT-23 unless it is set to null.
+- Factur-X MINIMUM writes BT-23 when set. `Invoice.BusinessProcess` has a default, so MINIMUM output now carries it unless it is
+  set to null.
 - Tests measure the writers against the KoSIT XRechnung model and each Factur-X schema. `eng/get-validators.sh` fetches them.
 
 ### Changed
@@ -19,8 +19,10 @@ All notable changes to this project are documented here. The format follows
 - `CiiReader` takes BT-86 from `PayeeSpecifiedDebtorFinancialInstitution` when the Creditor element has none.
 
 ### Fixed
-- Factur-X BASIC and BASIC WL no longer write BT-7, BT-82, BG-18 and BT-114, which their schemas do not have. The pre-flight check
-  warns (`PROFILE-NOT-WRITTEN`) for each value left out, and the amount due excludes the rounding amount.
+- Factur-X BASIC and BASIC WL no longer write BT-7, BT-82, BG-18, BT-114 and BT-45; BASIC no longer writes the line level base and
+  percentage (BT-137, BT-138, BT-142, BT-143). The official profile lists do not have them. The pre-flight check warns
+  (`PROFILE-NOT-WRITTEN`) for each value left out, and the amount due excludes the rounding amount.
+- Factur-X MINIMUM no longer writes the buyer VAT identifier (BT-48), which its official list does not have.
 
 ## [1.1.0] - 2026-10-23
 

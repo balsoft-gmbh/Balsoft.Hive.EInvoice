@@ -146,23 +146,119 @@ public class ProfileLimitsTests
     }
 
     [Fact]
-    public void MinimumWritesTheBusinessProcessAndBuyerCountry()
+    public void MinimumWritesTheBusinessProcess()
     {
         var inv = Samples.Standard();
         inv.BusinessProcess = "urn:example:process";
         var doc = Cii(inv, InvoiceProfile.FacturXMinimum);
         Assert.Equal("urn:example:process", doc.Descendants(Ram + "BusinessProcessSpecifiedDocumentContextParameter").Single().Element(Ram + "ID")!.Value);
-        Assert.Equal("DE", doc.Descendants(Ram + "BuyerTradeParty").Single().Element(Ram + "PostalTradeAddress")!.Element(Ram + "CountryID")!.Value);
     }
 
     [Fact]
-    public void MinimumOmitsWhatIsNotSet()
+    public void MinimumOmitsTheBusinessProcessWhenItIsNotSet()
     {
         var inv = Samples.Standard();
         inv.BusinessProcess = null;
-        inv.Buyer.Address.CountryCode = "";
-        var doc = Cii(inv, InvoiceProfile.FacturXMinimum);
-        Assert.Empty(doc.Descendants(Ram + "BusinessProcessSpecifiedDocumentContextParameter"));
-        Assert.Null(doc.Descendants(Ram + "BuyerTradeParty").Single().Element(Ram + "PostalTradeAddress"));
+        Assert.Empty(Cii(inv, InvoiceProfile.FacturXMinimum).Descendants(Ram + "BusinessProcessSpecifiedDocumentContextParameter"));
+    }
+
+    [Fact]
+    public void TheMinimumBuyerHasOnlyANameAndALegalOrganization()
+    {
+        var inv = Samples.Standard();
+        inv.Buyer.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 1");
+        var buyer = Cii(inv, InvoiceProfile.FacturXMinimum).Descendants(Ram + "BuyerTradeParty").Single();
+        Assert.Equal(new[] { "Name", "SpecifiedLegalOrganization" }, buyer.Elements().Select(e => e.Name.LocalName));
+    }
+
+    [Fact]
+    public void TheMinimumSellerKeepsItsCountryAndVatId()
+    {
+        var seller = Cii(Samples.Standard(), InvoiceProfile.FacturXMinimum).Descendants(Ram + "SellerTradeParty").Single();
+        Assert.Equal("DE", seller.Element(Ram + "PostalTradeAddress")!.Element(Ram + "CountryID")!.Value);
+        Assert.NotEmpty(seller.Elements(Ram + "SpecifiedTaxRegistration"));
+    }
+
+    private static Invoice LineAllowanceWithPercentage()
+    {
+        var inv = Samples.Standard();
+        inv.Lines[0].AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = false, BaseAmount = 100m, Percentage = 10m, Reason = "Rabatt" });
+        inv.Lines[0].AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = true, BaseAmount = 100m, Percentage = 5m, Reason = "Zuschlag" });
+        return inv;
+    }
+
+    private static XElement LineSettlement(XDocument doc)
+        => doc.Descendants(Ram + "IncludedSupplyChainTradeLineItem").First().Element(Ram + "SpecifiedLineTradeSettlement")!;
+
+    [Fact]
+    public void BasicLineAllowancesCarryTheAmountOnly()
+    {
+        var basic = LineSettlement(Cii(LineAllowanceWithPercentage(), InvoiceProfile.FacturXBasic)).Elements(Ram + "SpecifiedTradeAllowanceCharge").ToList();
+        Assert.Equal(new[] { "10.00", "5.00" }, basic.Select(a => a.Element(Ram + "ActualAmount")!.Value));
+        Assert.Empty(basic.Elements(Ram + "CalculationPercent"));
+        Assert.Empty(basic.Elements(Ram + "BasisAmount"));
+    }
+
+    [Fact]
+    public void BasicLineAmountIsTheSameWithoutThePercentage()
+    {
+        string net(InvoiceProfile p) => LineSettlement(Cii(LineAllowanceWithPercentage(), p)).Descendants(Ram + "LineTotalAmount").Single().Value;
+        Assert.Equal(net(InvoiceProfile.XRechnung), net(InvoiceProfile.FacturXBasic));
+    }
+
+    [Theory]
+    [MemberData(nameof(FullProfiles))]
+    public void FullProfilesKeepTheLinePercentageAndBase(InvoiceProfile profile)
+    {
+        var line = LineSettlement(Cii(LineAllowanceWithPercentage(), profile)).Elements(Ram + "SpecifiedTradeAllowanceCharge").ToList();
+        Assert.Equal(2, line.Elements(Ram + "CalculationPercent").Count());
+        Assert.Equal(2, line.Elements(Ram + "BasisAmount").Count());
+    }
+
+    [Fact]
+    public void BasicKeepsTheDocumentLevelPercentage()
+    {
+        var inv = Samples.AllowancesCharges();
+        inv.AllowancesAndCharges[0].BaseAmount = 100m;
+        inv.AllowancesAndCharges[0].Percentage = 10m;
+        inv.AllowancesAndCharges[0].Amount = 10m;
+        var header = Cii(inv, InvoiceProfile.FacturXBasic).Descendants(Ram + "ApplicableHeaderTradeSettlement").Single().Elements(Ram + "SpecifiedTradeAllowanceCharge").First();
+        Assert.Equal("10.00", header.Element(Ram + "CalculationPercent")!.Value);
+    }
+
+    [Fact]
+    public void BasicWarnsForTheLinePercentagesItLeavesOut()
+    {
+        var terms = InvoiceValidator.Validate(LineAllowanceWithPercentage(), InvoiceProfile.FacturXBasic).Issues
+            .Where(i => i.RuleId == "PROFILE-NOT-WRITTEN").Select(i => i.BusinessTerm).ToList();
+        Assert.Contains("BT-138", terms);
+        Assert.Contains("BT-143", terms);
+    }
+
+    public static TheoryData<InvoiceProfile> NoBuyerTradingName() => new() { InvoiceProfile.FacturXBasic, InvoiceProfile.FacturXBasicWL, InvoiceProfile.FacturXMinimum };
+
+    [Theory]
+    [MemberData(nameof(NoBuyerTradingName))]
+    public void ReducedProfilesLeaveOutTheBuyerTradingName(InvoiceProfile profile)
+    {
+        var inv = Samples.Standard();
+        inv.Buyer.TradingName = "Trading";
+        Assert.Empty(Cii(inv, profile).Descendants(Ram + "BuyerTradeParty").Descendants(Ram + "TradingBusinessName"));
+    }
+
+    [Fact]
+    public void BasicWarnsForTheBuyerTradingName()
+    {
+        var inv = Samples.Standard();
+        inv.Buyer.TradingName = "Trading";
+        Assert.Contains(InvoiceValidator.Validate(inv, InvoiceProfile.FacturXBasic).Issues, i => i.RuleId == "PROFILE-NOT-WRITTEN" && i.BusinessTerm == "BT-45");
+    }
+
+    [Fact]
+    public void BasicKeepsTheSellerTradingName()
+    {
+        var inv = Samples.Standard();
+        inv.Seller.TradingName = "Trading";
+        Assert.NotEmpty(Cii(inv, InvoiceProfile.FacturXBasic).Descendants(Ram + "SellerTradeParty").Descendants(Ram + "TradingBusinessName"));
     }
 }

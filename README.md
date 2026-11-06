@@ -110,9 +110,11 @@ var fromPdf = HybridPdf.ReadInvoice(File.ReadAllBytes("incoming.pdf")); // ZUGFe
 | `FacturXMinimum` | Factur-X / ZUGFeRD MINIMUM (no lines) | yes | | Mustang |
 | `PeppolBis3` | Peppol BIS Billing 3.0 | yes | yes | pre-flight Peppol rules |
 
-BASIC and BASIC WL have no element for the VAT point date (BT-7), payment means text (BT-82), payment card (BG-18) and
-rounding amount (BT-114): the writer leaves them out and the pre-flight check warns with `PROFILE-NOT-WRITTEN`. The tests compare
-the writers with the KoSIT XRechnung model and each Factur-X schema, so a term that stops being written fails the build.
+BASIC and BASIC WL have no VAT point date (BT-7), payment means text (BT-82), payment card (BG-18), rounding amount (BT-114) or buyer
+trading name (BT-45), and BASIC has no line level base or percentage: the writer leaves them out and the pre-flight check warns with
+`PROFILE-NOT-WRITTEN`. The tests compare the writers with the KoSIT XRechnung model and each Factur-X schema, so a term that stops being
+written fails the build. A further check compares each profile with the official Factur-X workbook (set `HIVE_FACTURX_PACKAGE`); that file is
+not redistributable, so public CI skips it.
 
 Hybrid PDFs are written for every Factur-X profile and XRechnung, and validated as PDF/A-3b
 by veraPDF inside Mustang.

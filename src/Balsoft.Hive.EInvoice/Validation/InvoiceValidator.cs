@@ -76,6 +76,10 @@ public static class InvoiceValidator
             NotWritten(Has(_inv.PaymentInstructions?.MeansText), "BT-82", "payment means text");
             NotWritten(Has(_inv.PaymentInstructions?.Card?.PrimaryAccountNumber), "BG-18", "payment card");
             NotWritten(_inv.RoundingAmount.HasValue, "BT-114", "rounding amount, so the amount due excludes it");
+            NotWritten(Has(_inv.Buyer.TradingName), "BT-45", "buyer trading name");
+            var lineAllowancesAndCharges = _inv.Lines.SelectMany(l => l.AllowancesAndCharges).ToList();
+            NotWritten(lineAllowancesAndCharges.Any(a => !a.IsCharge && (a.Percentage.HasValue || a.BaseAmount.HasValue)), "BT-138", "line allowance percentage and base");
+            NotWritten(lineAllowancesAndCharges.Any(a => a.IsCharge && (a.Percentage.HasValue || a.BaseAmount.HasValue)), "BT-143", "line charge percentage and base");
         }
 
         // ── header (all profiles) ─────────────────────────────────────────────

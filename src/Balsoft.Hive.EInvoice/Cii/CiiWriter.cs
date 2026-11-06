@@ -350,7 +350,7 @@ public static class CiiWriter
             Text("Name", party.Name);
             if (seller && _full) Text("Description", party.AdditionalLegalInformation);
 
-            bool tradingName = !_minimum && !string.IsNullOrWhiteSpace(party.TradingName);
+            bool tradingName = !_minimum && (seller || _full) && !string.IsNullOrWhiteSpace(party.TradingName);
             if (party.LegalRegistrationIdentifier is { } legal && !string.IsNullOrWhiteSpace(legal.Value) || tradingName)
             {
                 Start("SpecifiedLegalOrganization");
@@ -380,10 +380,10 @@ public static class CiiWriter
                 End();
             }
 
-            // MINIMUM carries the country only: mandatory for the seller, optional for the buyer.
+            // MINIMUM carries the seller with its country only and the buyer without an address.
             if (_minimum)
             {
-                if (seller || Has(party.Address.CountryCode))
+                if (seller)
                 {
                     Start("PostalTradeAddress");
                     Text("CountryID", party.Address.CountryCode);
@@ -402,7 +402,7 @@ public static class CiiWriter
                 End();
             }
 
-            TaxRegistration("VA", party.VatIdentifier);
+            if (seller || !_minimum) TaxRegistration("VA", party.VatIdentifier);
             if (seller) TaxRegistration("FC", party.TaxRegistrationIdentifier);
             End();
         }
@@ -654,8 +654,9 @@ public static class CiiWriter
         {
             Start("SpecifiedTradeAllowanceCharge");
             Indicator(ac.IsCharge);
-            if (ac.Percentage is { } pct) Text("CalculationPercent", Percent(pct));
-            if (ac.BaseAmount is { } basis) Text("BasisAmount", Amount(basis));
+            // BASIC has the base and percentage at document level only (withTax).
+            if ((_full || withTax) && ac.Percentage is { } pct) Text("CalculationPercent", Percent(pct));
+            if ((_full || withTax) && ac.BaseAmount is { } basis) Text("BasisAmount", Amount(basis));
             Text("ActualAmount", Amount(InvoiceCalculator.AmountOf(ac)));
             Text("ReasonCode", ac.ReasonCode);
             Text("Reason", ac.Reason);

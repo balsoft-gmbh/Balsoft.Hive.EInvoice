@@ -45,11 +45,12 @@ public class ProfileCoverageTests
             yield return Full(type, card: true, taxPointDate: true, payee: true);
             yield return Full(type, card: false, taxPointDate: false, payee: false);
             yield return Full(type, card: false, taxPointDate: false, payee: true);
+            yield return Full(type, card: false, taxPointDate: false, payee: true, alternate: true);
         }
     }
 
     /// <summary>Every property filled. BT-7 excludes BT-8, and BG-18 and BG-19 are alternatives, hence the variants.</summary>
-    private static Invoice Full(InvoiceTypeCode type, bool card, bool taxPointDate, bool payee)
+    private static Invoice Full(InvoiceTypeCode type, bool card, bool taxPointDate, bool payee, bool alternate = false)
     {
         static PostalAddress Address() => new()
         {
@@ -60,7 +61,8 @@ public class ProfileCoverageTests
         inv.TypeCode = type;
         inv.ContractReference = "K-1";
         if (!payee) inv.Payee = null;
-        if (payee) inv.Payee!.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 2");
+        if (payee) inv.Payee!.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 2", "0002");
+        if (payee && alternate) inv.Payee!.Identifier = new SchemedIdentifier("PAYEE-1");
         if (taxPointDate) inv.TaxPointDate = Samples.Issue; else inv.TaxPointDateCode = "5";
         inv.ProjectName = card ? inv.ProjectName : null;
         inv.TaxCurrency = "USD";
@@ -72,7 +74,7 @@ public class ProfileCoverageTests
         {
             party.Address = Address();
             party.TradingName = "Trading";
-            party.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 1");
+            party.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 1", "0002");
             party.Identifiers.Add(new SchemedIdentifier("ID-1"));
             party.Identifiers.Add(new SchemedIdentifier("4000001000005", IdentifierScheme.Gln));
             party.Contact = new Contact { Name = "Name", Department = "Department", Phone = "+49 221 12345", Email = "a@example.com" };
@@ -80,6 +82,12 @@ public class ProfileCoverageTests
         inv.Buyer.TaxRegistrationIdentifier = "1/2/3";
         inv.SellerTaxRepresentative = new TaxRepresentative { Name = "Representative", VatIdentifier = "DE111111111", Address = Address() };
         inv.Delivery!.Address = Address();
+        if (alternate)
+        {
+            inv.Delivery.LocationIdentifier = new SchemedIdentifier("LOCATION-1");
+            inv.Buyer.Identifiers.Clear();
+            inv.Buyer.Identifiers.Add(new SchemedIdentifier("4000001000005", IdentifierScheme.Gln));
+        }
         inv.PrecedingInvoices.Add(new PrecedingInvoiceReference { Number = "P-1", IssueDate = Samples.Issue });
         inv.SupportingDocuments.Add(new SupportingDocument { Reference = "R-1", Description = "D", ExternalLocation = "https://example.com/d" });
         inv.SupportingDocuments.Add(new SupportingDocument { Reference = "R-2", Content = new byte[] { 1 }, MimeCode = "text/csv", FileName = "a.csv" });
@@ -101,7 +109,7 @@ public class ProfileCoverageTests
         inv.PaymentInstructions = new PaymentInstructions { MeansCode = card ? "48" : "59", MeansText = "Text", RemittanceInformation = "Remittance" };
         if (card) inv.PaymentInstructions.Card = new PaymentCard { PrimaryAccountNumber = "123456", HolderName = "Holder" };
         else inv.PaymentInstructions.DirectDebit = new DirectDebit { MandateReference = "M-1", CreditorIdentifier = "DE98ZZZ09999999999", DebitedAccountIdentifier = "DE89370400440532013000" };
-        inv.PaymentInstructions.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "DE89370400440532013000", AccountName = "Account", ServiceProviderIdentifier = "COBADEFFXXX" });
+        inv.PaymentInstructions.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = alternate ? "1234567890" : "DE89370400440532013000", AccountName = "Account", ServiceProviderIdentifier = "COBADEFFXXX" });
         return inv;
     }
 
@@ -170,6 +178,84 @@ public class ProfileCoverageTests
                 if (!allowed.Contains(path)) extra.Add(path);
             }
         Assert.True(extra.Count == 0, $"not in the {folder} schema:{Environment.NewLine}{string.Join(Environment.NewLine, extra)}");
+    }
+
+    public static TheoryData<string, InvoiceProfile, bool> OfficialLists() => new()
+    {
+        { "Factur-X CII D22B MINIMUM", InvoiceProfile.FacturXMinimum, true },
+        { "Factur-X CII D22B BASIC WL", InvoiceProfile.FacturXBasicWL, true },
+        { "Factur-X CII D22B BASIC", InvoiceProfile.FacturXBasic, true },
+        { "Factur-X CII D22B EN16931", InvoiceProfile.EN16931, true },
+        { "Factur-X CII D22B EXTENDED", InvoiceProfile.FacturXExtended, false },
+    };
+
+    /// <summary>
+    /// The workbook of the Factur-X / ZUGFeRD package lists every term of a profile with its XPath. The package is not
+    /// redistributable and sits behind a form, so this runs where HIVE_FACTURX_PACKAGE points at the unpacked workbook.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(OfficialLists))]
+    public void WritingMatchesTheOfficialListOfTheProfile(string sheet, InvoiceProfile profile, bool everyTermIsWritten)
+    {
+        if (Environment.GetEnvironmentVariable("HIVE_FACTURX_PACKAGE") is not { Length: > 0 } workbook) { Assert.Skip("HIVE_FACTURX_PACKAGE is not set."); return; }
+        var official = OfficialPaths(workbook, sheet);
+        Assert.True(official.Count > 20, $"only {official.Count} rows read from {sheet}");
+
+        var written = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var invoice in FullInvoices())
+            foreach (var element in Xml(CiiWriter.Write(invoice, profile, NoCheck)).Descendants())
+            {
+                string path = string.Join("/", element.AncestorsAndSelf().Reverse().Select(a => a.Name.LocalName));
+                written.Add(path);
+                foreach (var attribute in element.Attributes().Where(a => !a.IsNamespaceDeclaration))
+                    written.Add(path + "/@" + attribute.Name.LocalName);
+            }
+
+        var listed = new HashSet<string>(official.Keys, StringComparer.Ordinal);
+        foreach (string path in official.Keys)
+            for (int i = path.IndexOf('/'); i > 0; i = path.IndexOf('/', i + 1))
+                listed.Add(path[..i]);
+        var notListed = written.Where(p => !p.Contains("/@", StringComparison.Ordinal) && !listed.Contains(p)).OrderBy(p => p, StringComparer.Ordinal).ToList();
+        Assert.True(notListed.Count == 0, $"written but not listed for {sheet}:{Environment.NewLine}{string.Join(Environment.NewLine, notListed)}");
+
+        if (!everyTermIsWritten) return;
+        var notWritten = official.Where(o => !written.Contains(o.Key)).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
+        Assert.True(notWritten.Count == 0, $"listed for {sheet} but not written:{Environment.NewLine}{string.Join(Environment.NewLine, notWritten)}");
+    }
+
+    /// <summary>XPath without prefixes and predicates, with the term id, from column S and F of a profile sheet.</summary>
+    private static Dictionary<string, string> OfficialPaths(string workbook, string sheet)
+    {
+        XNamespace main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        using var zip = System.IO.Compression.ZipFile.OpenRead(workbook);
+        XDocument Part(string name)
+        {
+            using var stream = zip.GetEntry(name)!.Open();
+            return XDocument.Load(stream);
+        }
+
+        var strings = Part("xl/sharedStrings.xml").Root!.Elements(main + "si").Select(si => string.Concat(si.Descendants(main + "t").Select(t => t.Value))).ToList();
+        string id = Part("xl/workbook.xml").Descendants(main + "sheet").Single(s => s.Attribute("name")!.Value == sheet).Attribute(rel + "id")!.Value;
+        string target = Part("xl/_rels/workbook.xml.rels").Root!.Elements().Single(r => r.Attribute("Id")!.Value == id).Attribute("Target")!.Value;
+        var rows = Part(target.StartsWith('/') ? target[1..] : "xl/" + target).Descendants(main + "row");
+
+        string? Cell(XElement row, string column)
+        {
+            var cell = row.Elements(main + "c").FirstOrDefault(c => Regex.Replace(c.Attribute("r")!.Value, "[0-9]", "") == column);
+            string? value = cell?.Element(main + "v")?.Value;
+            if (value is null) return null;
+            return cell!.Attribute("t")?.Value == "s" ? strings[int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)] : value;
+        }
+
+        var paths = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in rows.Skip(4))
+        {
+            if (Cell(row, "S") is not { Length: > 0 } xpath) continue;
+            string path = Regex.Replace(Regex.Replace(xpath, @"\[[^\]]*\]", ""), @"\b(rsm|ram|udt|qdt):", "").Replace(" ", "", StringComparison.Ordinal).Trim().Trim('/');
+            paths.TryAdd(path, Cell(row, "F") ?? "");
+        }
+        return paths;
     }
 
     /// <summary>All element paths a Factur-X schema allows, following the complex types across its files.</summary>
