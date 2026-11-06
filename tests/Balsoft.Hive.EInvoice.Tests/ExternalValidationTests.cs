@@ -14,7 +14,7 @@ public sealed class ExternalValidationFixture
     };
 
     /// <summary>Samples checked with Mustang in the Factur-X profiles (Mustang runs one JVM per file).</summary>
-    public static readonly string[] MustangSamples = { "01-standard", "02-skonto-aktivbank", "03-credit-note", "15-prepaid-rounding", "19-card-tax-point-rounding", "05-allowances-charges", "13-full-details" };
+    public static readonly string[] MustangSamples = { "01-standard", "02-skonto-aktivbank", "03-credit-note", "15-prepaid-rounding", "19-card-tax-point-rounding", "22-extended-terms", "05-allowances-charges", "13-full-details" };
 
     public static readonly string[] Syntaxes = { "cii", "ubl" };
 

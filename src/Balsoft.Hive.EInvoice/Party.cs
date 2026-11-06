@@ -36,6 +36,15 @@ public sealed class Party
     /// <summary>BG-5 Seller / BG-8 Buyer postal address. Mandatory.</summary>
     public PostalAddress Address { get; set; } = new();
 
+    /// <summary>Role code (UNTDID 3035). EXTENDED only.</summary>
+    public string? RoleCode { get; set; }
+
+    /// <summary>Legal postal address. EXTENDED only.</summary>
+    public PostalAddress? LegalAddress { get; set; }
+
+    /// <summary>Contacts after <see cref="Contact"/>. EXTENDED only.</summary>
+    public List<Contact> AdditionalContacts { get; } = new();
+
     /// <summary>BG-6 Seller / BG-9 Buyer contact. The seller contact is mandatory in XRechnung.</summary>
     public Contact? Contact { get; set; }
 }
@@ -82,6 +91,12 @@ public sealed class Contact
 
     /// <summary>BT-43 / BT-58 Contact email address. Mandatory for the seller in XRechnung.</summary>
     public string? Email { get; set; }
+
+    /// <summary>Contact type code. EXTENDED only.</summary>
+    public string? TypeCode { get; set; }
+
+    /// <summary>Contact fax number. EXTENDED only.</summary>
+    public string? Fax { get; set; }
 }
 
 /// <summary>BG-10 Payee, when the payment goes to a party other than the seller.</summary>

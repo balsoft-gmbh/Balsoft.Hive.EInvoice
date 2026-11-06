@@ -29,8 +29,8 @@ public enum InvoiceProfile
     FacturXMinimum,
 
     /// <summary>
-    /// Factur-X / ZUGFeRD profile EXTENDED. This library writes the EN 16931 content under
-    /// the EXTENDED identifier, which is valid because EXTENDED is a superset.
+    /// Factur-X / ZUGFeRD profile EXTENDED: the EN 16931 content plus <see cref="Invoice.Extended"/>.
+    /// Settlement and line level EXTENDED terms are not modelled yet.
     /// </summary>
     FacturXExtended,
 

@@ -13,6 +13,12 @@ All notable changes to this project are documented here. The format follows
   set to null.
 - Tests measure the writers against the KoSIT XRechnung model and each Factur-X schema. `eng/get-validators.sh` fetches them.
 
+- Factur-X EXTENDED, first part: `Invoice.Extended` (`InvoiceExtension`, `ExtendedParty`) with the sales agent, buyer and seller tax representative,
+  product end user, buyer agent, ship to, ultimate ship to, ship from, invoicer, invoicee, payee and payer; document name, language, copy and test indicators,
+  contractual due date; delivery terms and transport mode; quotation, delivery note and ultimate customer order references and the dates of the other references.
+  `Party`, `Contact`, `InvoiceNote`, `PrecedingInvoiceReference` and `SupportingDocument` gain their EXTENDED terms. Other profiles ignore all of it and the pre-flight
+  check warns. `CiiReader` reads it back for EXTENDED documents.
+
 ### Changed
 - `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no
   `PersonName`.

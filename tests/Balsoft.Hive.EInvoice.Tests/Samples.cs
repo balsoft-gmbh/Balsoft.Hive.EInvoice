@@ -32,6 +32,7 @@ public static class Samples
         ["19-card-tax-point-rounding"] = CardTaxPointRounding,
         ["20-department-contact"] = DepartmentContact,
         ["21-credit-note-invoiced-object"] = CreditNoteInvoicedObject,
+        ["22-extended-terms"] = ExtendedFull,
     };
 
     public static Invoice Base(string number = "RE-2026-0001")
@@ -351,6 +352,90 @@ public static class Samples
         var inv = CreditNote();
         inv.Number = "GS-2026-0021";
         inv.InvoicedObjectIdentifier = new SchemedIdentifier("ZAEHLER-0815", "AAG");
+        return inv;
+    }
+
+    /// <summary>Every EXTENDED term the library has, on an invoice that is also complete for the other profiles.</summary>
+    public static Invoice ExtendedFull()
+    {
+        static PostalAddress Address(string city) => new()
+        {
+            Line1 = "Hauptstr. 1", Line2 = "Haus 2", Line3 = "Etage 3", City = city, PostCode = "50667", CountrySubdivision = "NRW", CountryCode = "DE",
+        };
+
+        static ExtendedParty Party(string name)
+        {
+            var party = new ExtendedParty
+            {
+                Identifier = "ID-" + name.Length,
+                Name = name,
+                RoleCode = "DL",
+                LegalRegistrationIdentifier = new SchemedIdentifier("HRB 1", "0002"),
+                TradingName = name + " Handel",
+                LegalAddress = Address("Bonn"),
+                Address = Address("Köln"),
+                ElectronicAddress = new SchemedIdentifier("party@example.com", ElectronicAddressScheme.Email),
+                VatIdentifier = "DE123456789",
+            };
+            party.GlobalIdentifiers.Add(new SchemedIdentifier("4000001000005", IdentifierScheme.Gln));
+            party.Contacts.Add(new Contact { Name = "Name", Department = "Einkauf", TypeCode = "IC", Phone = "+49 221 12345", Fax = "+49 221 12346", Email = "contact@example.com" });
+            return party;
+        }
+
+        var inv = FullDetails();
+        inv.Number = "RE-2026-0022";
+        inv.ContractReference = "K-2026-1";
+        inv.TenderOrLotReference = "LOS-3";
+        inv.Notes[0].ContentCode = "ST1";
+        inv.PrecedingInvoices.Add(new PrecedingInvoiceReference { Number = "RE-2026-0001", IssueDate = Issue.AddDays(-30), TypeCode = "380" });
+        inv.SupportingDocuments.Add(new SupportingDocument { Reference = "Vertrag-42", ExternalLocation = "https://balsoft.de/vertraege/42", IssueDate = Issue.AddDays(-60) });
+        foreach (var party in new[] { inv.Seller, inv.Buyer })
+        {
+            party.RoleCode = "AB";
+            party.LegalRegistrationIdentifier = new SchemedIdentifier("HRB 9", "0002");
+            party.LegalAddress = Address("Bonn");
+            party.AdditionalContacts.Add(new Contact { Name = "Zweiter Kontakt", TypeCode = "SR", Phone = "+49 221 99", Fax = "+49 221 98", Email = "second@example.com" });
+        }
+        inv.Seller.Contact!.TypeCode = "IC";
+        inv.Seller.Contact.Fax = "+49 221 1234568";
+        inv.Buyer.Contact!.TypeCode = "IC";
+        inv.Buyer.Contact.Fax = "+49 30 556";
+        inv.Buyer.AdditionalLegalInformation = "Amtsgericht Berlin";
+
+        inv.Extended = new InvoiceExtension
+        {
+            IsTest = true,
+            DocumentName = "Rechnung",
+            IsCopy = false,
+            LanguageCode = "deu",
+            ContractualDueDate = Issue.AddDays(30),
+            SalesAgent = Party("Sales Agent GmbH"),
+            BuyerTaxRepresentative = Party("Buyer Tax Rep GmbH"),
+            SellerTaxRepresentative = Party("Seller Tax Rep GmbH"),
+            ProductEndUser = Party("End User GmbH"),
+            BuyerAgent = Party("Buyer Agent GmbH"),
+            ShipTo = Party("Ship To GmbH"),
+            UltimateShipTo = Party("Ultimate Ship To GmbH"),
+            ShipFrom = Party("Ship From GmbH"),
+            Invoicer = Party("Invoicer GmbH"),
+            Invoicee = Party("Invoicee GmbH"),
+            Payee = Party("Payee GmbH"),
+            Payer = Party("Payer GmbH"),
+            DeliveryTerms = new DeliveryTerms { Code = "FCA", LocationCountryCode = "DE", LocationName = "Köln" },
+            InvoiceIssuerReference = "AUSSTELLER-1",
+            SalesOrderDate = Issue.AddDays(-20),
+            PurchaseOrderDate = Issue.AddDays(-21),
+            ContractDate = Issue.AddDays(-100),
+            ContractTypeCode = "CT",
+            TenderOrLotDate = Issue.AddDays(-110),
+            InvoicedObjectDate = Issue.AddDays(-5),
+            DespatchAdviceDate = Issue.AddDays(-3),
+            ReceivingAdviceDate = Issue.AddDays(-2),
+            Quotation = new ExtendedDocumentReference { Number = "ANG-1", Date = Issue.AddDays(-40) },
+            DeliveryNote = new ExtendedDocumentReference { Number = "LN-1", Date = Issue.AddDays(-3) },
+        };
+        inv.Extended.UltimateCustomerOrders.Add(new ExtendedDocumentReference { Number = "EK-1", Date = Issue.AddDays(-50) });
+        inv.Extended.TransportModeCodes.Add("3");
         return inv;
     }
 }

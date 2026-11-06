@@ -49,6 +49,7 @@ public static class InvoiceValidator
         public void Run()
         {
             Header();
+            if (_profile != InvoiceProfile.FacturXExtended) ExtendedTermsNotWritten();
             if (_profile.IsEN16931Compliant())
             {
                 Parties();
@@ -61,6 +62,18 @@ public static class InvoiceValidator
             if (_profile is InvoiceProfile.FacturXBasic or InvoiceProfile.FacturXBasicWL) BasicProfileLimits();
             if (_profile == InvoiceProfile.XRechnung) XRechnung();
             if (_profile == InvoiceProfile.PeppolBis3) Peppol();
+        }
+
+        // ── EXTENDED terms set under another profile ──
+
+        private void ExtendedTermsNotWritten()
+        {
+            bool PartyHas(Party p) => Has(p.RoleCode) || p.LegalAddress is not null || p.AdditionalContacts.Count > 0
+                || Has(p.Contact?.TypeCode) || Has(p.Contact?.Fax);
+            bool set = _inv.Extended is not null || PartyHas(_inv.Seller) || PartyHas(_inv.Buyer)
+                || _inv.Notes.Any(n => Has(n.ContentCode)) || _inv.PrecedingInvoices.Any(p => Has(p.TypeCode))
+                || _inv.SupportingDocuments.Any(d => d.IssueDate.HasValue);
+            if (set) Warn("PROFILE-NOT-WRITTEN", $"{_profile} has no element for the EXTENDED terms; they are not written.", "EXTENDED");
         }
 
         // ── BASIC and BASIC WL have no element for these; the writer leaves them out ──

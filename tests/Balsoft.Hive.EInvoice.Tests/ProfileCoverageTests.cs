@@ -38,8 +38,26 @@ public class ProfileCoverageTests
         return full;
     }
 
+    /// <summary>Official EXTENDED rows the library does not have yet.</summary>
+    private static readonly string[] OpenExtendedRows =
+    {
+        "SupplyChainTradeTransaction/IncludedSupplyChainTradeLineItem",
+        "ApplicableHeaderTradeSettlement/SpecifiedTradePaymentTerms",
+        "ApplicableHeaderTradeSettlement/SpecifiedAdvancePayment",
+        "ApplicableHeaderTradeSettlement/SpecifiedLogisticsServiceCharge",
+        "ApplicableHeaderTradeSettlement/SpecifiedFinancialAdjustment",
+        "ApplicableHeaderTradeSettlement/TaxApplicableTradeCurrencyExchange",
+        "ApplicableHeaderTradeSettlement/SpecifiedTradeSettlementPaymentMeans",
+        "ApplicableHeaderTradeSettlement/ApplicableTradeTax",
+        "ApplicableHeaderTradeSettlement/SpecifiedTradeAllowanceCharge",
+        "ApplicableHeaderTradeSettlement/BillingSpecifiedPeriod",
+        "ApplicableHeaderTradeSettlement/ReceivableSpecifiedTradeAccountingAccount",
+        "ApplicableHeaderTradeSettlement/SpecifiedTradeSettlementHeaderMonetarySummation",
+    };
+
     private static IEnumerable<Invoice> FullInvoices()
     {
+        yield return Samples.ExtendedFull();
         foreach (var type in new[] { InvoiceTypeCode.CommercialInvoice, InvoiceTypeCode.CreditNote })
         {
             yield return Full(type, card: true, taxPointDate: true, payee: true);
@@ -186,7 +204,7 @@ public class ProfileCoverageTests
         { "Factur-X CII D22B BASIC WL", InvoiceProfile.FacturXBasicWL, true },
         { "Factur-X CII D22B BASIC", InvoiceProfile.FacturXBasic, true },
         { "Factur-X CII D22B EN16931", InvoiceProfile.EN16931, true },
-        { "Factur-X CII D22B EXTENDED", InvoiceProfile.FacturXExtended, false },
+        { "Factur-X CII D22B EXTENDED", InvoiceProfile.FacturXExtended, true },
     };
 
     /// <summary>
@@ -219,7 +237,7 @@ public class ProfileCoverageTests
         Assert.True(notListed.Count == 0, $"written but not listed for {sheet}:{Environment.NewLine}{string.Join(Environment.NewLine, notListed)}");
 
         if (!everyTermIsWritten) return;
-        var notWritten = official.Where(o => !written.Contains(o.Key)).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
+        var notWritten = official.Where(o => !written.Contains(o.Key) && !(profile == InvoiceProfile.FacturXExtended && OpenExtendedRows.Any(o.Key.Contains))).Select(o => $"{o.Value}  {o.Key}").OrderBy(p => p, StringComparer.Ordinal).ToList();
         Assert.True(notWritten.Count == 0, $"listed for {sheet} but not written:{Environment.NewLine}{string.Join(Environment.NewLine, notWritten)}");
     }
 

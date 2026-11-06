@@ -77,6 +77,8 @@ public static class CiiWriter
         private readonly bool _minimum;
         private readonly bool _lines;
         private readonly bool _full;
+        private readonly InvoiceExtension? _ext;
+        private readonly bool _extended;
 
         public Emitter(XmlWriter x, Invoice invoice, InvoiceProfile profile)
         {
@@ -88,6 +90,8 @@ public static class CiiWriter
             _lines = profile.HasLines();
             _full = profile is InvoiceProfile.XRechnung or InvoiceProfile.EN16931 or InvoiceProfile.FacturXExtended
                 or InvoiceProfile.PeppolBis3;
+            _extended = profile == InvoiceProfile.FacturXExtended;
+            _ext = _extended ? invoice.Extended : null;
         }
 
         public void Document()
@@ -100,6 +104,7 @@ public static class CiiWriter
 
             // ExchangedDocumentContext: BT-23 and BT-24
             _x.WriteStartElement("rsm", "ExchangedDocumentContext", Rsm);
+            if (_ext?.IsTest is { } isTest) UdtIndicator("TestIndicator", isTest);
             if (!string.IsNullOrWhiteSpace(_inv.BusinessProcess))
             {
                 Start("BusinessProcessSpecifiedDocumentContextParameter");
@@ -114,17 +119,27 @@ public static class CiiWriter
             // ExchangedDocument: BT-1, BT-3, BT-2, BG-1
             _x.WriteStartElement("rsm", "ExchangedDocument", Rsm);
             Text("ID", _inv.Number);
+            Text("Name", _ext?.DocumentName);
             Text("TypeCode", _inv.TypeCode.ToCode());
             DateTimeElement("IssueDateTime", _inv.IssueDate);
+            if (_ext?.IsCopy is { } isCopy) UdtIndicator("CopyIndicator", isCopy);
+            Text("LanguageID", _ext?.LanguageCode);
             if (!_minimum)
             {
                 foreach (var note in _inv.Notes.Where(n => !string.IsNullOrWhiteSpace(n.Text)))
                 {
                     Start("IncludedNote");
+                    if (_extended) Text("ContentCode", note.ContentCode);
                     Text("Content", note.Text);
                     Text("SubjectCode", note.SubjectCode);
                     End();
                 }
+            }
+            if (_ext?.ContractualDueDate is { } contractualDue)
+            {
+                Start("EffectiveSpecifiedPeriod");
+                DateTimeElement("CompleteDateTime", contractualDue);
+                End();
             }
             _x.WriteEndElement();
 
@@ -277,7 +292,13 @@ public static class CiiWriter
             TradeParty("SellerTradeParty", _inv.Seller, seller: true);
             TradeParty("BuyerTradeParty", _inv.Buyer, seller: false);
 
-            if (!_minimum && _inv.SellerTaxRepresentative is { } rep)
+            ExtendedPartyElement("SalesAgentTradeParty", _ext?.SalesAgent);
+            ExtendedPartyElement("BuyerTaxRepresentativeTradeParty", _ext?.BuyerTaxRepresentative);
+            if (_ext?.SellerTaxRepresentative is not null)
+            {
+                ExtendedPartyElement("SellerTaxRepresentativeTradeParty", _ext.SellerTaxRepresentative);
+            }
+            else if (!_minimum && _inv.SellerTaxRepresentative is { } rep)
             {
                 Start("SellerTaxRepresentativeTradeParty");
                 Text("Name", rep.Name);
@@ -286,9 +307,25 @@ public static class CiiWriter
                 End();
             }
 
-            if (_full) ReferencedId("SellerOrderReferencedDocument", _inv.SalesOrderReference);
-            ReferencedId("BuyerOrderReferencedDocument", _inv.PurchaseOrderReference);
-            if (!_minimum) ReferencedId("ContractReferencedDocument", _inv.ContractReference);
+            ExtendedPartyElement("ProductEndUserTradeParty", _ext?.ProductEndUser);
+            if (_ext?.DeliveryTerms is { } terms)
+            {
+                Start("ApplicableTradeDeliveryTerms");
+                Text("DeliveryTypeCode", terms.Code);
+                if (Has(terms.LocationCountryCode) || Has(terms.LocationName))
+                {
+                    Start("RelevantTradeLocation");
+                    Text("CountryID", terms.LocationCountryCode);
+                    Text("Name", terms.LocationName);
+                    End();
+                }
+                End();
+            }
+
+            if (_full) ReferencedId("SellerOrderReferencedDocument", _inv.SalesOrderReference, _ext?.SalesOrderDate);
+            ReferencedId("BuyerOrderReferencedDocument", _inv.PurchaseOrderReference, _ext?.PurchaseOrderDate);
+            if (_ext?.Quotation is { } quotation) ReferencedId("QuotationReferencedDocument", quotation.Number, quotation.Date);
+            if (!_minimum) ReferencedId("ContractReferencedDocument", _inv.ContractReference, _ext?.ContractDate, _ext?.ContractTypeCode);
 
             if (_full)
             {
@@ -307,6 +344,7 @@ public static class CiiWriter
                         _x.WriteString(Convert.ToBase64String(content));
                         _x.WriteEndElement();
                     }
+                    if (_extended && doc.IssueDate is { } docDate) FormattedDate(docDate);
                     End();
                 }
                 if (!string.IsNullOrWhiteSpace(_inv.TenderOrLotReference))
@@ -314,6 +352,7 @@ public static class CiiWriter
                     Start("AdditionalReferencedDocument");
                     Text("IssuerAssignedID", _inv.TenderOrLotReference);
                     Text("TypeCode", "50");
+                    if (_ext?.TenderOrLotDate is { } tenderDate) FormattedDate(tenderDate);
                     End();
                 }
                 if (_inv.InvoicedObjectIdentifier is { } obj && !string.IsNullOrWhiteSpace(obj.Value))
@@ -322,8 +361,10 @@ public static class CiiWriter
                     Text("IssuerAssignedID", obj.Value);
                     Text("TypeCode", "130");
                     Text("ReferenceTypeCode", obj.Scheme);
+                    if (_ext?.InvoicedObjectDate is { } objectDate) FormattedDate(objectDate);
                     End();
                 }
+                ExtendedPartyElement("BuyerAgentTradeParty", _ext?.BuyerAgent);
                 if (!string.IsNullOrWhiteSpace(_inv.ProjectReference))
                 {
                     Start("SpecifiedProcuringProject");
@@ -331,6 +372,9 @@ public static class CiiWriter
                     Text("Name", Has(_inv.ProjectName) ? _inv.ProjectName : DefaultProjectName);
                     End();
                 }
+                if (_ext is not null)
+                    foreach (var order in _ext.UltimateCustomerOrders)
+                        ReferencedId("UltimateCustomerOrderReferencedDocument", order.Number, order.Date);
             }
             End();
         }
@@ -348,37 +392,25 @@ public static class CiiWriter
                     Text("GlobalID", id.Value, "schemeID", id.Scheme);
             }
             Text("Name", party.Name);
-            if (seller && _full) Text("Description", party.AdditionalLegalInformation);
+            if (_extended) Text("RoleCode", party.RoleCode);
+            if ((seller && _full) || _extended) Text("Description", party.AdditionalLegalInformation);
 
             bool tradingName = !_minimum && (seller || _full) && !string.IsNullOrWhiteSpace(party.TradingName);
-            if (party.LegalRegistrationIdentifier is { } legal && !string.IsNullOrWhiteSpace(legal.Value) || tradingName)
+            var legalAddress = _extended ? party.LegalAddress : null;
+            if (party.LegalRegistrationIdentifier is { } legal && !string.IsNullOrWhiteSpace(legal.Value) || tradingName || legalAddress is not null)
             {
                 Start("SpecifiedLegalOrganization");
                 if (party.LegalRegistrationIdentifier is { } lr && !string.IsNullOrWhiteSpace(lr.Value))
                     Text("ID", lr.Value, "schemeID", lr.Scheme);
                 if (tradingName) Text("TradingBusinessName", party.TradingName);
+                if (legalAddress is not null) Address(legalAddress);
                 End();
             }
 
-            if (_full && party.Contact is { } c && (Has(c.Name) || Has(c.Department) || Has(c.Phone) || Has(c.Email)))
-            {
-                Start("DefinedTradeContact");
-                Text("PersonName", c.Name);
-                Text("DepartmentName", c.Department);
-                if (Has(c.Phone))
-                {
-                    Start("TelephoneUniversalCommunication");
-                    Text("CompleteNumber", c.Phone);
-                    End();
-                }
-                if (Has(c.Email))
-                {
-                    Start("EmailURIUniversalCommunication");
-                    Text("URIID", c.Email);
-                    End();
-                }
-                End();
-            }
+            if (_full && party.Contact is { } c) ContactElement(c);
+            if (_extended)
+                foreach (var additional in party.AdditionalContacts)
+                    ContactElement(additional);
 
             // MINIMUM carries the seller with its country only and the buyer without an address.
             if (_minimum)
@@ -407,6 +439,65 @@ public static class CiiWriter
             End();
         }
 
+        private void ContactElement(Contact c)
+        {
+            bool typeOrFax = _extended && (Has(c.TypeCode) || Has(c.Fax));
+            if (!Has(c.Name) && !Has(c.Department) && !Has(c.Phone) && !Has(c.Email) && !typeOrFax) return;
+            Start("DefinedTradeContact");
+            Text("PersonName", c.Name);
+            Text("DepartmentName", c.Department);
+            if (_extended) Text("TypeCode", c.TypeCode);
+            if (Has(c.Phone))
+            {
+                Start("TelephoneUniversalCommunication");
+                Text("CompleteNumber", c.Phone);
+                End();
+            }
+            if (_extended && Has(c.Fax))
+            {
+                Start("FaxUniversalCommunication");
+                Text("CompleteNumber", c.Fax);
+                End();
+            }
+            if (Has(c.Email))
+            {
+                Start("EmailURIUniversalCommunication");
+                Text("URIID", c.Email);
+                End();
+            }
+            End();
+        }
+
+        private void ExtendedPartyElement(string element, ExtendedParty? party)
+        {
+            if (party is null) return;
+            Start(element);
+            Text("ID", party.Identifier);
+            foreach (var id in party.GlobalIdentifiers.Where(i => Has(i.Value)))
+                Text("GlobalID", id.Value, "schemeID", id.Scheme);
+            Text("Name", party.Name);
+            Text("RoleCode", party.RoleCode);
+            bool hasLegalId = party.LegalRegistrationIdentifier is { } l && Has(l.Value);
+            if (hasLegalId || Has(party.TradingName) || party.LegalAddress is not null)
+            {
+                Start("SpecifiedLegalOrganization");
+                if (hasLegalId) Text("ID", party.LegalRegistrationIdentifier!.Value, "schemeID", party.LegalRegistrationIdentifier.Scheme);
+                Text("TradingBusinessName", party.TradingName);
+                if (party.LegalAddress is not null) Address(party.LegalAddress);
+                End();
+            }
+            foreach (var contact in party.Contacts) ContactElement(contact);
+            if (party.Address is not null) Address(party.Address);
+            if (party.ElectronicAddress is { } ea && Has(ea.Value))
+            {
+                Start("URIUniversalCommunication");
+                Text("URIID", ea.Value, "schemeID", ea.Scheme);
+                End();
+            }
+            TaxRegistration("VA", party.VatIdentifier);
+            End();
+        }
+
         private void Address(PostalAddress a)
         {
             Start("PostalTradeAddress");
@@ -431,9 +522,21 @@ public static class CiiWriter
         private void HeaderDelivery()
         {
             Start("ApplicableHeaderTradeDelivery");
+            if (_ext is { TransportModeCodes.Count: > 0 })
+            {
+                Start("RelatedSupplyChainConsignment");
+                foreach (string mode in _ext.TransportModeCodes)
+                {
+                    Start("SpecifiedLogisticsTransportMovement");
+                    Text("ModeCode", mode);
+                    End();
+                }
+                End();
+            }
+            if (_ext?.ShipTo is not null) ExtendedPartyElement("ShipToTradeParty", _ext.ShipTo);
             if (!_minimum && _inv.Delivery is { } d)
             {
-                bool party = Has(d.PartyName) || d.LocationIdentifier is not null || d.Address is not null;
+                bool party = _ext?.ShipTo is null && (Has(d.PartyName) || d.LocationIdentifier is not null || d.Address is not null);
                 if (party)
                 {
                     Start("ShipToTradeParty");
@@ -446,7 +549,12 @@ public static class CiiWriter
                     if (d.Address is not null) Address(d.Address);
                     End();
                 }
-                if (d.ActualDeliveryDate is { } date)
+            }
+            ExtendedPartyElement("UltimateShipToTradeParty", _ext?.UltimateShipTo);
+            ExtendedPartyElement("ShipFromTradeParty", _ext?.ShipFrom);
+            if (!_minimum && _inv.Delivery is { } delivered)
+            {
+                if (delivered.ActualDeliveryDate is { } date)
                 {
                     Start("ActualDeliverySupplyChainEvent");
                     DateTimeElement("OccurrenceDateTime", date);
@@ -455,8 +563,9 @@ public static class CiiWriter
             }
             if (!_minimum)
             {
-                ReferencedId("DespatchAdviceReferencedDocument", _inv.DespatchAdviceReference);
-                if (_full) ReferencedId("ReceivingAdviceReferencedDocument", _inv.ReceivingAdviceReference);
+                ReferencedId("DespatchAdviceReferencedDocument", _inv.DespatchAdviceReference, _ext?.DespatchAdviceDate);
+                if (_full) ReferencedId("ReceivingAdviceReferencedDocument", _inv.ReceivingAdviceReference, _ext?.ReceivingAdviceDate);
+                if (_ext?.DeliveryNote is { } note) ReferencedId("DeliveryNoteReferencedDocument", note.Number, note.Date);
             }
             End();
         }
@@ -472,8 +581,15 @@ public static class CiiWriter
                 Text("TaxCurrencyCode", _inv.TaxCurrency);
             }
             Text("InvoiceCurrencyCode", _inv.Currency);
+            Text("InvoiceIssuerReference", _ext?.InvoiceIssuerReference);
+            ExtendedPartyElement("InvoicerTradeParty", _ext?.Invoicer);
+            ExtendedPartyElement("InvoiceeTradeParty", _ext?.Invoicee);
 
-            if (!_minimum && _inv.Payee is { } payee)
+            if (_ext?.Payee is not null)
+            {
+                ExtendedPartyElement("PayeeTradeParty", _ext.Payee);
+            }
+            else if (!_minimum && _inv.Payee is { } payee)
             {
                 Start("PayeeTradeParty");
                 if (payee.Identifier is { } pid && Has(pid.Value))
@@ -490,6 +606,8 @@ public static class CiiWriter
                 }
                 End();
             }
+
+            ExtendedPartyElement("PayerTradeParty", _ext?.Payer);
 
             if (!_minimum && pay is not null) PaymentMeans(pay);
 
@@ -564,15 +682,8 @@ public static class CiiWriter
                 {
                     Start("InvoiceReferencedDocument");
                     Text("IssuerAssignedID", p.Number);
-                    if (p.IssueDate is { } d)
-                    {
-                        Start("FormattedIssueDateTime");
-                        _x.WriteStartElement("qdt", "DateTimeString", Qdt);
-                        _x.WriteAttributeString("format", "102");
-                        _x.WriteString(d.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
-                        _x.WriteEndElement();
-                        End();
-                    }
+                    if (_extended) Text("TypeCode", p.TypeCode);
+                    if (p.IssueDate is { } d) FormattedDate(d);
                     End();
                 }
                 if (Has(_inv.BuyerAccountingReference))
@@ -690,12 +801,33 @@ public static class CiiWriter
             End();
         }
 
-        private void ReferencedId(string element, string? id)
+        private void ReferencedId(string element, string? id, DateTime? date = null, string? referenceTypeCode = null)
         {
             if (!Has(id)) return;
             Start(element);
             Text("IssuerAssignedID", id);
+            Text("ReferenceTypeCode", referenceTypeCode);
+            if (date is { } d) FormattedDate(d);
             End();
+        }
+
+        private void FormattedDate(DateTime date)
+        {
+            Start("FormattedIssueDateTime");
+            _x.WriteStartElement("qdt", "DateTimeString", Qdt);
+            _x.WriteAttributeString("format", "102");
+            _x.WriteString(date.ToString("yyyyMMdd", CultureInfo.InvariantCulture));
+            _x.WriteEndElement();
+            End();
+        }
+
+        private void UdtIndicator(string element, bool value)
+        {
+            _x.WriteStartElement("ram", element, Ram);
+            _x.WriteStartElement("udt", "Indicator", Udt);
+            _x.WriteString(value ? "true" : "false");
+            _x.WriteEndElement();
+            _x.WriteEndElement();
         }
 
         // ── primitives ────────────────────────────────────────────────────────

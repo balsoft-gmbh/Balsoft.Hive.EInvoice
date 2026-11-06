@@ -9,7 +9,7 @@ namespace Balsoft.Hive.EInvoice.Reading;
 
 /// <summary>
 /// Reads a UN/CEFACT CII document (XRechnung, ZUGFeRD / Factur-X, EN 16931) into an
-/// <see cref="Invoice"/>. Business terms outside EN 16931 (EXTENDED-only elements) are ignored.
+/// <see cref="Invoice"/>, with the EXTENDED terms in <see cref="Invoice.Extended"/> for a document of that profile.
 /// </summary>
 public static class CiiReader
 {
@@ -42,7 +42,7 @@ public static class CiiReader
         foreach (var note in exchanged?.Elements(Ram + "IncludedNote") ?? Enumerable.Empty<XElement>())
         {
             if (note.Element(Ram + "Content").Value() is { } text)
-                inv.Notes.Add(new InvoiceNote(text, note.Element(Ram + "SubjectCode").Value()));
+                inv.Notes.Add(new InvoiceNote(text, note.Element(Ram + "SubjectCode").Value()) { ContentCode = note.Element(Ram + "ContentCode").Value() });
         }
 
         var transaction = root.Element(Rsm + "SupplyChainTradeTransaction");
@@ -53,8 +53,108 @@ public static class CiiReader
         Delivery(inv, transaction?.Element(Ram + "ApplicableHeaderTradeDelivery"));
         var stated = Settlement(inv, transaction?.Element(Ram + "ApplicableHeaderTradeSettlement"));
 
+        if (InvoiceProfileExtensions.TryFromSpecificationIdentifier(spec, out var read) && read == InvoiceProfile.FacturXExtended)
+            inv.Extended = Extension(context, exchanged, transaction);
+
         InvoiceProfile? profile = InvoiceProfileExtensions.TryFromSpecificationIdentifier(spec, out var p) ? p : null;
         return new ReadResult(inv, InvoiceSyntax.Cii, spec, profile, stated);
+    }
+
+    private static InvoiceExtension Extension(XElement? context, XElement? exchanged, XElement? transaction)
+    {
+        var a = transaction?.Element(Ram + "ApplicableHeaderTradeAgreement");
+        var d = transaction?.Element(Ram + "ApplicableHeaderTradeDelivery");
+        var s = transaction?.Element(Ram + "ApplicableHeaderTradeSettlement");
+        var x = new InvoiceExtension
+        {
+            IsTest = Indicator(context?.Element(Ram + "TestIndicator")),
+            DocumentName = exchanged?.Element(Ram + "Name").Value(),
+            IsCopy = Indicator(exchanged?.Element(Ram + "CopyIndicator")),
+            LanguageCode = exchanged?.Element(Ram + "LanguageID").Value(),
+            ContractualDueDate = DateTimeOf(exchanged?.Element(Ram + "EffectiveSpecifiedPeriod")?.Element(Ram + "CompleteDateTime")),
+            SalesAgent = ExtendedPartyOf(a?.Element(Ram + "SalesAgentTradeParty")),
+            BuyerTaxRepresentative = ExtendedPartyOf(a?.Element(Ram + "BuyerTaxRepresentativeTradeParty")),
+            SellerTaxRepresentative = ExtendedPartyOf(a?.Element(Ram + "SellerTaxRepresentativeTradeParty")),
+            ProductEndUser = ExtendedPartyOf(a?.Element(Ram + "ProductEndUserTradeParty")),
+            BuyerAgent = ExtendedPartyOf(a?.Element(Ram + "BuyerAgentTradeParty")),
+            ShipTo = ExtendedPartyOf(d?.Element(Ram + "ShipToTradeParty")),
+            UltimateShipTo = ExtendedPartyOf(d?.Element(Ram + "UltimateShipToTradeParty")),
+            ShipFrom = ExtendedPartyOf(d?.Element(Ram + "ShipFromTradeParty")),
+            InvoiceIssuerReference = s?.Element(Ram + "InvoiceIssuerReference").Value(),
+            Invoicer = ExtendedPartyOf(s?.Element(Ram + "InvoicerTradeParty")),
+            Invoicee = ExtendedPartyOf(s?.Element(Ram + "InvoiceeTradeParty")),
+            Payee = ExtendedPartyOf(s?.Element(Ram + "PayeeTradeParty")),
+            Payer = ExtendedPartyOf(s?.Element(Ram + "PayerTradeParty")),
+            SalesOrderDate = ReferenceDate(a?.Element(Ram + "SellerOrderReferencedDocument")),
+            PurchaseOrderDate = ReferenceDate(a?.Element(Ram + "BuyerOrderReferencedDocument")),
+            Quotation = Reference(a?.Element(Ram + "QuotationReferencedDocument")),
+            ContractDate = ReferenceDate(a?.Element(Ram + "ContractReferencedDocument")),
+            ContractTypeCode = a?.Element(Ram + "ContractReferencedDocument")?.Element(Ram + "ReferenceTypeCode").Value(),
+            DespatchAdviceDate = ReferenceDate(d?.Element(Ram + "DespatchAdviceReferencedDocument")),
+            ReceivingAdviceDate = ReferenceDate(d?.Element(Ram + "ReceivingAdviceReferencedDocument")),
+            DeliveryNote = Reference(d?.Element(Ram + "DeliveryNoteReferencedDocument")),
+        };
+        foreach (var r in a?.Elements(Ram + "AdditionalReferencedDocument") ?? Enumerable.Empty<XElement>())
+        {
+            string? type = r.Element(Ram + "TypeCode").Value();
+            if (type == "50") x.TenderOrLotDate = ReferenceDate(r);
+            else if (type == "130") x.InvoicedObjectDate = ReferenceDate(r);
+        }
+        foreach (var r in a?.Elements(Ram + "UltimateCustomerOrderReferencedDocument") ?? Enumerable.Empty<XElement>())
+            x.UltimateCustomerOrders.Add(Reference(r)!);
+        if (a?.Element(Ram + "ApplicableTradeDeliveryTerms") is { } terms)
+        {
+            var location = terms.Element(Ram + "RelevantTradeLocation");
+            x.DeliveryTerms = new DeliveryTerms
+            {
+                Code = terms.Element(Ram + "DeliveryTypeCode").Value() ?? "",
+                LocationCountryCode = location?.Element(Ram + "CountryID").Value(),
+                LocationName = location?.Element(Ram + "Name").Value(),
+            };
+        }
+        foreach (var movement in d?.Element(Ram + "RelatedSupplyChainConsignment")?.Elements(Ram + "SpecifiedLogisticsTransportMovement") ?? Enumerable.Empty<XElement>())
+            if (movement.Element(Ram + "ModeCode").Value() is { } mode) x.TransportModeCodes.Add(mode);
+        return x;
+    }
+
+    private static bool? Indicator(XElement? e)
+        => e?.Element(Udt + "Indicator").Value() is { } value ? Truthy(value) : null;
+
+    private static DateTime? ReferenceDate(XElement? document)
+        => DateTimeOf(document?.Element(Ram + "FormattedIssueDateTime"));
+
+    private static ExtendedDocumentReference? Reference(XElement? document)
+        => document is null ? null : new ExtendedDocumentReference { Number = document.Element(Ram + "IssuerAssignedID").Value() ?? "", Date = ReferenceDate(document) };
+
+    private static Contact ContactOf(XElement c) => new()
+    {
+        Name = c.Element(Ram + "PersonName").Value(),
+        Department = c.Element(Ram + "DepartmentName").Value(),
+        TypeCode = c.Element(Ram + "TypeCode").Value(),
+        Phone = c.Element(Ram + "TelephoneUniversalCommunication")?.Element(Ram + "CompleteNumber").Value(),
+        Fax = c.Element(Ram + "FaxUniversalCommunication")?.Element(Ram + "CompleteNumber").Value(),
+        Email = c.Element(Ram + "EmailURIUniversalCommunication")?.Element(Ram + "URIID").Value(),
+    };
+
+    private static ExtendedParty? ExtendedPartyOf(XElement? e)
+    {
+        if (e is null) return null;
+        var legal = e.Element(Ram + "SpecifiedLegalOrganization");
+        var party = new ExtendedParty
+        {
+            Identifier = e.Element(Ram + "ID").Value(),
+            Name = e.Element(Ram + "Name").Value() ?? "",
+            RoleCode = e.Element(Ram + "RoleCode").Value(),
+            LegalRegistrationIdentifier = Id(legal?.Element(Ram + "ID")),
+            TradingName = legal?.Element(Ram + "TradingBusinessName").Value(),
+            LegalAddress = legal?.Element(Ram + "PostalTradeAddress") is { } la ? Address(la) : null,
+            Address = e.Element(Ram + "PostalTradeAddress") is { } pa ? Address(pa) : null,
+            ElectronicAddress = Id(e.Element(Ram + "URIUniversalCommunication")?.Element(Ram + "URIID")),
+            VatIdentifier = e.Elements(Ram + "SpecifiedTaxRegistration").Select(t => t.Element(Ram + "ID")).FirstOrDefault(t => t.Attr("schemeID") == "VA").Value(),
+        };
+        foreach (var id in e.Elements(Ram + "GlobalID")) party.GlobalIdentifiers.Add(Id(id)!);
+        foreach (var c in e.Elements(Ram + "DefinedTradeContact")) party.Contacts.Add(ContactOf(c));
+        return party;
     }
 
     private static DateTime? DateTimeOf(XElement? container)
@@ -183,6 +283,7 @@ public static class CiiReader
                         Content = att.Value() is { } b64 ? Convert.FromBase64String(b64) : null,
                         MimeCode = att.Attr("mimeCode"),
                         FileName = att.Attr("filename"),
+                        IssueDate = ReferenceDate(r),
                     });
                     break;
             }
@@ -204,16 +305,11 @@ public static class CiiReader
         var legal = e.Element(Ram + "SpecifiedLegalOrganization");
         p.LegalRegistrationIdentifier = Id(legal?.Element(Ram + "ID"));
         p.TradingName = legal?.Element(Ram + "TradingBusinessName").Value();
-        if (e.Element(Ram + "DefinedTradeContact") is { } c)
-        {
-            p.Contact = new Contact
-            {
-                Name = c.Element(Ram + "PersonName").Value(),
-                Department = c.Element(Ram + "DepartmentName").Value(),
-                Phone = c.Element(Ram + "TelephoneUniversalCommunication")?.Element(Ram + "CompleteNumber").Value(),
-                Email = c.Element(Ram + "EmailURIUniversalCommunication")?.Element(Ram + "URIID").Value(),
-            };
-        }
+        p.RoleCode = e.Element(Ram + "RoleCode").Value();
+        if (legal?.Element(Ram + "PostalTradeAddress") is { } legalAddress) p.LegalAddress = Address(legalAddress);
+        var contacts = e.Elements(Ram + "DefinedTradeContact").Select(ContactOf).ToList();
+        p.Contact = contacts.FirstOrDefault();
+        p.AdditionalContacts.AddRange(contacts.Skip(1));
         p.Address = Address(e.Element(Ram + "PostalTradeAddress"));
         p.ElectronicAddress = Id(e.Element(Ram + "URIUniversalCommunication")?.Element(Ram + "URIID"));
         foreach (var t in e.Elements(Ram + "SpecifiedTaxRegistration").Select(t => t.Element(Ram + "ID")))
@@ -342,6 +438,7 @@ public static class CiiReader
             {
                 Number = r.Element(Ram + "IssuerAssignedID").Value() ?? "",
                 IssueDate = Date(r.Element(Ram + "FormattedIssueDateTime")?.Element(Qdt + "DateTimeString").Value()),
+                TypeCode = r.Element(Ram + "TypeCode").Value(),
             });
         }
         inv.BuyerAccountingReference = s.Element(Ram + "ReceivableSpecifiedTradeAccountingAccount")?.Element(Ram + "ID").Value();

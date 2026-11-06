@@ -108,6 +108,9 @@ public sealed class Invoice
     /// <summary>BG-7 Buyer. Mandatory.</summary>
     public Party Buyer { get; set; } = new();
 
+    /// <summary>Terms that exist only in the Factur-X / ZUGFeRD EXTENDED profile.</summary>
+    public InvoiceExtension? Extended { get; set; }
+
     /// <summary>BG-10 Payee, when different from the seller.</summary>
     public Payee? Payee { get; set; }
 
@@ -173,6 +176,9 @@ public sealed class InvoiceNote
     /// <summary>BT-22 Invoice note text.</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>BT-X-5 Note content code. EXTENDED only.</summary>
+    public string? ContentCode { get; set; }
+
     /// <summary>BT-21 Invoice note subject code (UNTDID 4451), for example "REG" or "AAI".</summary>
     public string? SubjectCode { get; set; }
 }
@@ -185,6 +191,9 @@ public sealed class PrecedingInvoiceReference
 
     /// <summary>BT-26 Preceding invoice issue date.</summary>
     public DateTime? IssueDate { get; set; }
+
+    /// <summary>BT-X-555 Preceding invoice type code. EXTENDED only.</summary>
+    public string? TypeCode { get; set; }
 }
 
 /// <summary>A cash discount (Skonto) offered for early payment.</summary>
@@ -276,4 +285,7 @@ public sealed class SupportingDocument
 
     /// <summary>BT-125-2 Attached document file name.</summary>
     public string? FileName { get; set; }
+
+    /// <summary>BT-X-149 Document date. EXTENDED only.</summary>
+    public DateTime? IssueDate { get; set; }
 }
