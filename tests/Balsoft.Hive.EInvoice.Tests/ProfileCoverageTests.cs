@@ -42,17 +42,6 @@ public class ProfileCoverageTests
     private static readonly string[] OpenExtendedRows =
     {
         "SupplyChainTradeTransaction/IncludedSupplyChainTradeLineItem",
-        "ApplicableHeaderTradeSettlement/SpecifiedTradePaymentTerms",
-        "ApplicableHeaderTradeSettlement/SpecifiedAdvancePayment",
-        "ApplicableHeaderTradeSettlement/SpecifiedLogisticsServiceCharge",
-        "ApplicableHeaderTradeSettlement/SpecifiedFinancialAdjustment",
-        "ApplicableHeaderTradeSettlement/TaxApplicableTradeCurrencyExchange",
-        "ApplicableHeaderTradeSettlement/SpecifiedTradeSettlementPaymentMeans",
-        "ApplicableHeaderTradeSettlement/ApplicableTradeTax",
-        "ApplicableHeaderTradeSettlement/SpecifiedTradeAllowanceCharge",
-        "ApplicableHeaderTradeSettlement/BillingSpecifiedPeriod",
-        "ApplicableHeaderTradeSettlement/ReceivableSpecifiedTradeAccountingAccount",
-        "ApplicableHeaderTradeSettlement/SpecifiedTradeSettlementHeaderMonetarySummation",
     };
 
     private static IEnumerable<Invoice> FullInvoices()
@@ -126,7 +115,7 @@ public class ProfileCoverageTests
 
         inv.PaymentInstructions = new PaymentInstructions { MeansCode = card ? "48" : "59", MeansText = "Text", RemittanceInformation = "Remittance" };
         if (card) inv.PaymentInstructions.Card = new PaymentCard { PrimaryAccountNumber = "123456", HolderName = "Holder" };
-        else inv.PaymentInstructions.DirectDebit = new DirectDebit { MandateReference = "M-1", CreditorIdentifier = "DE98ZZZ09999999999", DebitedAccountIdentifier = "DE89370400440532013000" };
+        else inv.PaymentInstructions.DirectDebit = new DirectDebit { MandateReference = "M-1", CreditorIdentifier = "DE98ZZZ09999999999", DebitedAccountIdentifier = "DE89370400440532013000", DebitedAccountName = "Debited", DebitedServiceProviderIdentifier = "COBADEFFXXX" };
         inv.PaymentInstructions.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = alternate ? "1234567890" : "DE89370400440532013000", AccountName = "Account", ServiceProviderIdentifier = "COBADEFFXXX" });
         return inv;
     }

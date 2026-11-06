@@ -102,6 +102,157 @@ public sealed class InvoiceExtension
 
     /// <summary>BT-X-202 Delivery note reference.</summary>
     public ExtendedDocumentReference? DeliveryNote { get; set; }
+
+    /// <summary>BG-X-41 Exchange rate to the tax currency.</summary>
+    public CurrencyExchange? TaxCurrencyExchange { get; set; }
+
+    /// <summary>Writes BT-X-262 and BT-X-263, the line total and allowance and charge parts of each VAT basis, calculated from the invoice.</summary>
+    public bool WriteVatBasisDetails { get; set; }
+
+    /// <summary>BT-X-264 Invoicing period description.</summary>
+    public string? InvoicingPeriodDescription { get; set; }
+
+    /// <summary>BG-X-42 Logistics service charges. They count as document level charges in the totals of this profile.</summary>
+    public List<LogisticsCharge> LogisticsCharges { get; } = new();
+
+    /// <summary>Payment terms with their EXTENDED terms. When any is set they take the place of the payment terms, due date and mandate of the invoice in this profile.</summary>
+    public List<ExtendedPaymentTerm> PaymentTerms { get; } = new();
+
+    /// <summary>BG-34 Charges on behalf of a third party. They add to the amount due in this profile.</summary>
+    public List<FinancialAdjustment> FinancialAdjustments { get; } = new();
+
+    /// <summary>BT-X-290 Type code of the buyer accounting reference (BT-19).</summary>
+    public string? BuyerAccountingTypeCode { get; set; }
+
+    /// <summary>BG-X-45 Advance payments. Informational: <see cref="Invoice.PrepaidAmount"/> is what the totals use.</summary>
+    public List<AdvancePayment> AdvancePayments { get; } = new();
+}
+
+/// <summary>BG-X-41 Exchange rate between two currencies.</summary>
+public sealed class CurrencyExchange
+{
+    /// <summary>BT-X-258 Source currency. Mandatory.</summary>
+    public string SourceCurrencyCode { get; set; } = "";
+
+    /// <summary>BT-X-259 Target currency. Mandatory.</summary>
+    public string TargetCurrencyCode { get; set; } = "";
+
+    /// <summary>BT-X-260 Exchange rate. Mandatory.</summary>
+    public decimal ConversionRate { get; set; }
+
+    /// <summary>BT-X-261 Date of the exchange rate.</summary>
+    public DateTime? Date { get; set; }
+}
+
+/// <summary>A tax on an EXTENDED charge or payment.</summary>
+public sealed class ExtendedTax
+{
+    /// <summary>The tax amount, on an advance payment.</summary>
+    public decimal? CalculatedAmount { get; set; }
+
+    /// <summary>VAT category. Mandatory.</summary>
+    public VatCategory Category { get; set; } = VatCategory.StandardRate;
+
+    /// <summary>VAT rate.</summary>
+    public decimal? Rate { get; set; }
+
+    /// <summary>VAT exemption reason text.</summary>
+    public string? ExemptionReason { get; set; }
+
+    /// <summary>VAT exemption reason code.</summary>
+    public string? ExemptionReasonCode { get; set; }
+}
+
+/// <summary>BG-X-42 Logistics service charge.</summary>
+public sealed class LogisticsCharge
+{
+    /// <summary>BT-X-271 Description. Mandatory.</summary>
+    public string Description { get; set; } = "";
+
+    /// <summary>BT-X-272 Amount. Mandatory.</summary>
+    public decimal Amount { get; set; }
+
+    /// <summary>The taxes on the charge. At least one; the amount counts towards the VAT basis of the first.</summary>
+    public List<ExtendedTax> Taxes { get; } = new();
+}
+
+/// <summary>One set of payment terms, with the terms only EXTENDED has.</summary>
+public sealed class ExtendedPaymentTerm
+{
+    /// <summary>BT-20 Payment terms text.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>BT-9 Due date.</summary>
+    public DateTime? DueDate { get; set; }
+
+    /// <summary>BT-89 Direct debit mandate.</summary>
+    public string? MandateReference { get; set; }
+
+    /// <summary>BT-X-275 Partial payment amount.</summary>
+    public decimal? PartialPaymentAmount { get; set; }
+
+    /// <summary>BG-X-43 Payment penalty.</summary>
+    public PaymentAdjustment? Penalty { get; set; }
+
+    /// <summary>BG-X-44 Payment discount.</summary>
+    public PaymentAdjustment? Discount { get; set; }
+
+    /// <summary>BG-X-77 Payee of this payment.</summary>
+    public ExtendedParty? Payee { get; set; }
+}
+
+/// <summary>BG-X-43, BG-X-44 A payment penalty or discount.</summary>
+public sealed class PaymentAdjustment
+{
+    /// <summary>Date the period starts from.</summary>
+    public DateTime? BasisDate { get; set; }
+
+    /// <summary>Length of the period.</summary>
+    public decimal? Period { get; set; }
+
+    /// <summary>Unit of the period (UN/ECE Recommendation 20).</summary>
+    public string? PeriodUnitCode { get; set; }
+
+    /// <summary>Base amount.</summary>
+    public decimal? BaseAmount { get; set; }
+
+    /// <summary>Percentage.</summary>
+    public decimal? Percentage { get; set; }
+
+    /// <summary>Amount.</summary>
+    public decimal? Amount { get; set; }
+}
+
+/// <summary>BG-34 A charge collected on behalf of a third party.</summary>
+public sealed class FinancialAdjustment
+{
+    /// <summary>BT-180 What the charge is. Mandatory.</summary>
+    public string Reason { get; set; } = "";
+
+    /// <summary>BT-179 Amount. Mandatory.</summary>
+    public decimal Amount { get; set; }
+}
+
+/// <summary>BG-X-45 Advance payment.</summary>
+public sealed class AdvancePayment
+{
+    /// <summary>BT-X-291 Amount paid. Mandatory.</summary>
+    public decimal PaidAmount { get; set; }
+
+    /// <summary>BT-X-292 Date of the payment.</summary>
+    public DateTime? ReceivedDate { get; set; }
+
+    /// <summary>BG-X-46 The taxes included. At least one.</summary>
+    public List<ExtendedTax> Taxes { get; } = new();
+
+    /// <summary>BT-X-558 Number of the invoice the payment belongs to.</summary>
+    public string? InvoiceNumber { get; set; }
+
+    /// <summary>BT-X-559 Type code of that invoice.</summary>
+    public string? InvoiceTypeCode { get; set; }
+
+    /// <summary>BT-X-560 Date of that invoice.</summary>
+    public DateTime? InvoiceDate { get; set; }
 }
 
 /// <summary>A party with the terms EXTENDED gives each of its roles.</summary>

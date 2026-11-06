@@ -8,7 +8,7 @@ namespace Balsoft.Hive.EInvoice;
 public sealed class InvoiceTotals
 {
     internal InvoiceTotals(IReadOnlyList<decimal> lineNetAmounts, decimal lineNetTotal, decimal allowanceTotal,
-        decimal chargeTotal, decimal vatTotal, decimal? prepaid, decimal? rounding, IReadOnlyList<VatBreakdown> breakdown)
+        decimal chargeTotal, decimal vatTotal, decimal? prepaid, decimal? rounding, IReadOnlyList<VatBreakdown> breakdown, decimal thirdPartyCharges = 0m)
     {
         LineNetAmounts = lineNetAmounts;
         LineNetTotal = lineNetTotal;
@@ -18,7 +18,11 @@ public sealed class InvoiceTotals
         PrepaidAmount = prepaid;
         RoundingAmount = rounding;
         VatBreakdown = breakdown;
+        ThirdPartyCharges = thirdPartyCharges;
     }
+
+    /// <summary>Sum of BT-179, the charges collected on behalf of a third party. EXTENDED only.</summary>
+    public decimal ThirdPartyCharges { get; }
 
     /// <summary>BT-131 Invoice line net amount of each line, in line order.</summary>
     public IReadOnlyList<decimal> LineNetAmounts { get; }
@@ -48,7 +52,7 @@ public sealed class InvoiceTotals
     public decimal? RoundingAmount { get; }
 
     /// <summary>BT-115 Amount due for payment.</summary>
-    public decimal AmountDue => TaxInclusiveAmount - (PrepaidAmount ?? 0m) + (RoundingAmount ?? 0m);
+    public decimal AmountDue => TaxInclusiveAmount - (PrepaidAmount ?? 0m) + (RoundingAmount ?? 0m) + ThirdPartyCharges;
 
     /// <summary>BG-23 VAT breakdown, one entry per VAT category and rate.</summary>
     public IReadOnlyList<VatBreakdown> VatBreakdown { get; }
@@ -129,8 +133,15 @@ public static class InvoiceCalculator
     };
 
     /// <summary>Calculates totals and VAT breakdown of <paramref name="invoice"/>.</summary>
-    public static InvoiceTotals Calculate(Invoice invoice)
+    public static InvoiceTotals Calculate(Invoice invoice) => Calculate(invoice, InvoiceProfile.EN16931);
+
+    /// <summary>
+    /// Calculates the totals for a profile. Under EXTENDED the logistics service charges count as document level charges
+    /// (BR-FXEXT-CO-12, CO-13) and the charges on behalf of a third party add to the amount due (BR-FXEXT-CO-16).
+    /// </summary>
+    public static InvoiceTotals Calculate(Invoice invoice, InvoiceProfile profile)
     {
+        var extension = profile == InvoiceProfile.FacturXExtended ? invoice.Extended : null;
         var lineNets = invoice.Lines.Select(LineNetAmount).ToList();
         decimal lineTotal = lineNets.Sum();
 
@@ -140,6 +151,8 @@ public static class InvoiceCalculator
             if (ac.IsCharge) charges += AmountOf(ac);
             else allowances += AmountOf(ac);
         }
+        foreach (var logistics in extension?.LogisticsCharges ?? Enumerable.Empty<LogisticsCharge>())
+            charges += logistics.Amount;
 
         // Group by (category, rate) in order of first appearance: lines first, then
         // document level allowances and charges, which carry their own category.
@@ -156,6 +169,8 @@ public static class InvoiceCalculator
             Add(invoice.Lines[i].VatCategory, invoice.Lines[i].VatRate, lineNets[i]);
         foreach (var ac in invoice.AllowancesAndCharges)
             Add(ac.VatCategory, ac.VatRate, ac.IsCharge ? AmountOf(ac) : -AmountOf(ac));
+        foreach (var logistics in extension?.LogisticsCharges ?? Enumerable.Empty<LogisticsCharge>())
+            if (logistics.Taxes.FirstOrDefault() is { } tax) Add(tax.Category, tax.Rate, logistics.Amount);
 
         var breakdown = new List<VatBreakdown>();
         decimal vatTotal = 0m;
@@ -171,6 +186,6 @@ public static class InvoiceCalculator
         }
 
         return new InvoiceTotals(lineNets, lineTotal, allowances, charges, vatTotal,
-            invoice.PrepaidAmount, invoice.RoundingAmount, breakdown);
+            invoice.PrepaidAmount, invoice.RoundingAmount, breakdown, extension?.FinancialAdjustments.Sum(a => a.Amount) ?? 0m);
     }
 }

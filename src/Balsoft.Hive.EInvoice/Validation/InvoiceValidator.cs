@@ -72,7 +72,9 @@ public static class InvoiceValidator
                 || Has(p.Contact?.TypeCode) || Has(p.Contact?.Fax);
             bool set = _inv.Extended is not null || PartyHas(_inv.Seller) || PartyHas(_inv.Buyer)
                 || _inv.Notes.Any(n => Has(n.ContentCode)) || _inv.PrecedingInvoices.Any(p => Has(p.TypeCode))
-                || _inv.SupportingDocuments.Any(d => d.IssueDate.HasValue);
+                || _inv.SupportingDocuments.Any(d => d.IssueDate.HasValue)
+                || Has(_inv.PaymentInstructions?.DirectDebit?.DebitedAccountName) || Has(_inv.PaymentInstructions?.DirectDebit?.DebitedServiceProviderIdentifier)
+                || _inv.AllowancesAndCharges.Any(a => a.SequenceNumber.HasValue || a.BaseQuantity.HasValue || Has(a.ReasonCodeListId) || Has(a.ExemptionReason) || Has(a.ExemptionReasonCode));
             if (set) Warn("PROFILE-NOT-WRITTEN", $"{_profile} has no element for the EXTENDED terms; they are not written.", "EXTENDED");
         }
 
@@ -293,7 +295,7 @@ public static class InvoiceValidator
 
         private void Payment()
         {
-            var totals = InvoiceCalculator.Calculate(_inv);
+            var totals = InvoiceCalculator.Calculate(_inv, _profile);
             if (totals.AmountDue > 0m && _inv.DueDate is null && PaymentTermsFormatter.Format(_inv) is null)
                 // EN 16931 states BR-CO-25, but the official CII and UBL artefacts do not assert it.
                 Warn("BR-CO-25", "A positive amount due should come with a payment due date or payment terms.", "BT-9, BT-20");

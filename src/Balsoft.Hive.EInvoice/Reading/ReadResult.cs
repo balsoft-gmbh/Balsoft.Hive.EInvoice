@@ -70,7 +70,7 @@ public sealed class ReadResult
     /// </summary>
     public IReadOnlyList<string> TotalsDiscrepancies()
     {
-        var calc = Invoice.CalculateTotals();
+        var calc = InvoiceCalculator.Calculate(Invoice, Profile ?? InvoiceProfile.EN16931);
         var list = new List<string>();
         void Check(string bt, decimal? stated, decimal calculated)
         {

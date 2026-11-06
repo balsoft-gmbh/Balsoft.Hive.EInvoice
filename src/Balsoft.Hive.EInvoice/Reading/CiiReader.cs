@@ -100,6 +100,7 @@ public static class CiiReader
             if (type == "50") x.TenderOrLotDate = ReferenceDate(r);
             else if (type == "130") x.InvoicedObjectDate = ReferenceDate(r);
         }
+        SettlementExtension(x, s);
         foreach (var r in a?.Elements(Ram + "UltimateCustomerOrderReferencedDocument") ?? Enumerable.Empty<XElement>())
             x.UltimateCustomerOrders.Add(Reference(r)!);
         if (a?.Element(Ram + "ApplicableTradeDeliveryTerms") is { } terms)
@@ -115,6 +116,83 @@ public static class CiiReader
         foreach (var movement in d?.Element(Ram + "RelatedSupplyChainConsignment")?.Elements(Ram + "SpecifiedLogisticsTransportMovement") ?? Enumerable.Empty<XElement>())
             if (movement.Element(Ram + "ModeCode").Value() is { } mode) x.TransportModeCodes.Add(mode);
         return x;
+    }
+
+    private static void SettlementExtension(InvoiceExtension x, XElement? s)
+    {
+        if (s is null) return;
+        if (s.Element(Ram + "TaxApplicableTradeCurrencyExchange") is { } exchange)
+        {
+            x.TaxCurrencyExchange = new CurrencyExchange
+            {
+                SourceCurrencyCode = exchange.Element(Ram + "SourceCurrencyCode").Value() ?? "",
+                TargetCurrencyCode = exchange.Element(Ram + "TargetCurrencyCode").Value() ?? "",
+                ConversionRate = exchange.Element(Ram + "ConversionRate").Decimal() ?? 0m,
+                Date = DateTimeOf(exchange.Element(Ram + "ConversionRateDateTime")),
+            };
+        }
+        x.WriteVatBasisDetails = s.Elements(Ram + "ApplicableTradeTax").Any(t => t.Element(Ram + "LineTotalBasisAmount") is not null);
+        x.InvoicingPeriodDescription = s.Element(Ram + "BillingSpecifiedPeriod")?.Element(Ram + "Description").Value();
+        foreach (var charge in s.Elements(Ram + "SpecifiedLogisticsServiceCharge"))
+        {
+            var logistics = new LogisticsCharge { Description = charge.Element(Ram + "Description").Value() ?? "", Amount = charge.Element(Ram + "AppliedAmount").Decimal() ?? 0m };
+            logistics.Taxes.AddRange(charge.Elements(Ram + "AppliedTradeTax").Select(ExtendedTaxOf));
+            x.LogisticsCharges.Add(logistics);
+        }
+        var terms = s.Elements(Ram + "SpecifiedTradePaymentTerms").ToList();
+        bool extendedTerms = terms.Count > 1 || terms.Any(t => t.Element(Ram + "PartialPaymentAmount") is not null || t.Element(Ram + "ApplicableTradePaymentPenaltyTerms") is not null
+            || t.Element(Ram + "ApplicableTradePaymentDiscountTerms") is not null || t.Element(Ram + "PayeeTradeParty") is not null);
+        if (extendedTerms)
+            x.PaymentTerms.AddRange(terms.Select(t => new ExtendedPaymentTerm
+            {
+                Description = t.Element(Ram + "Description")?.Value,
+                DueDate = DateTimeOf(t.Element(Ram + "DueDateDateTime")),
+                MandateReference = t.Element(Ram + "DirectDebitMandateID").Value(),
+                PartialPaymentAmount = t.Element(Ram + "PartialPaymentAmount").Decimal(),
+                Penalty = PaymentAdjustmentOf(t.Element(Ram + "ApplicableTradePaymentPenaltyTerms"), "ActualPenaltyAmount"),
+                Discount = PaymentAdjustmentOf(t.Element(Ram + "ApplicableTradePaymentDiscountTerms"), "ActualDiscountAmount"),
+                Payee = ExtendedPartyOf(t.Element(Ram + "PayeeTradeParty")),
+            }));
+        foreach (var adjustment in s.Elements(Ram + "SpecifiedFinancialAdjustment"))
+            x.FinancialAdjustments.Add(new FinancialAdjustment { Reason = adjustment.Element(Ram + "Reason").Value() ?? "", Amount = adjustment.Element(Ram + "ActualAmount").Decimal() ?? 0m });
+        x.BuyerAccountingTypeCode = s.Element(Ram + "ReceivableSpecifiedTradeAccountingAccount")?.Element(Ram + "TypeCode").Value();
+        foreach (var payment in s.Elements(Ram + "SpecifiedAdvancePayment"))
+        {
+            var document = payment.Element(Ram + "InvoiceSpecifiedReferencedDocument");
+            var advance = new AdvancePayment
+            {
+                PaidAmount = payment.Element(Ram + "PaidAmount").Decimal() ?? 0m,
+                ReceivedDate = DateTimeOf(payment.Element(Ram + "FormattedReceivedDateTime")),
+                InvoiceNumber = document?.Element(Ram + "IssuerAssignedID").Value(),
+                InvoiceTypeCode = document?.Element(Ram + "TypeCode").Value(),
+                InvoiceDate = ReferenceDate(document),
+            };
+            advance.Taxes.AddRange(payment.Elements(Ram + "IncludedTradeTax").Select(ExtendedTaxOf));
+            x.AdvancePayments.Add(advance);
+        }
+    }
+
+    private static ExtendedTax ExtendedTaxOf(XElement tax) => new()
+    {
+        CalculatedAmount = tax.Element(Ram + "CalculatedAmount").Decimal(),
+        Category = Category(tax.Element(Ram + "CategoryCode").Value()),
+        Rate = tax.Element(Ram + "RateApplicablePercent").Decimal(),
+        ExemptionReason = tax.Element(Ram + "ExemptionReason").Value(),
+        ExemptionReasonCode = tax.Element(Ram + "ExemptionReasonCode").Value(),
+    };
+
+    private static PaymentAdjustment? PaymentAdjustmentOf(XElement? e, string amountElement)
+    {
+        if (e is null) return null;
+        return new PaymentAdjustment
+        {
+            BasisDate = DateTimeOf(e.Element(Ram + "BasisDateTime")),
+            Period = e.Element(Ram + "BasisPeriodMeasure").Decimal(),
+            PeriodUnitCode = e.Element(Ram + "BasisPeriodMeasure").Attr("unitCode"),
+            BaseAmount = e.Element(Ram + "BasisAmount").Decimal(),
+            Percentage = e.Element(Ram + "CalculationPercent").Decimal(),
+            Amount = e.Element(Ram + amountElement).Decimal(),
+        };
     }
 
     private static bool? Indicator(XElement? e)
@@ -237,9 +315,15 @@ public static class CiiReader
             BaseAmount = e.Element(Ram + "BasisAmount").Decimal(),
             Amount = e.Element(Ram + "ActualAmount").Decimal(),
             ReasonCode = e.Element(Ram + "ReasonCode").Value(),
+            ReasonCodeListId = e.Element(Ram + "ReasonCode").Attr("listID"),
             Reason = e.Element(Ram + "Reason").Value(),
             VatCategory = Category(tax?.Element(Ram + "CategoryCode").Value()),
             VatRate = tax?.Element(Ram + "RateApplicablePercent").Decimal(),
+            SequenceNumber = e.Element(Ram + "SequenceNumeric").Decimal(),
+            BaseQuantity = e.Element(Ram + "BasisQuantity").Decimal(),
+            BaseQuantityUnitCode = e.Element(Ram + "BasisQuantity").Attr("unitCode"),
+            ExemptionReason = tax?.Element(Ram + "ExemptionReason").Value(),
+            ExemptionReasonCode = tax?.Element(Ram + "ExemptionReasonCode").Value(),
         };
     }
 
@@ -378,6 +462,10 @@ public static class CiiReader
             pay.MeansText = means.Element(Ram + "Information").Value() ?? pay.MeansText;
             if (means.Element(Ram + "ApplicableTradeSettlementFinancialCard") is { } card)
                 pay.Card = new PaymentCard { PrimaryAccountNumber = card.Element(Ram + "ID").Value() ?? "", HolderName = card.Element(Ram + "CardholderName").Value() };
+            if (means.Element(Ram + "PayerPartyDebtorFinancialAccount")?.Element(Ram + "AccountName").Value() is { } debtorName)
+                EnsureDirectDebit(inv).DebitedAccountName = debtorName;
+            if (means.Element(Ram + "PayerSpecifiedDebtorFinancialInstitution")?.Element(Ram + "BICID").Value() is { } debtorBic)
+                EnsureDirectDebit(inv).DebitedServiceProviderIdentifier = debtorBic;
             if (means.Element(Ram + "PayerPartyDebtorFinancialAccount")?.Element(Ram + "IBANID").Value() is { } debtor)
                 EnsureDirectDebit(inv).DebitedAccountIdentifier = debtor;
             if (means.Element(Ram + "PayeePartyCreditorFinancialAccount") is { } account)

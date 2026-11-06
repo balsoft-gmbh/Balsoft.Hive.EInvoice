@@ -156,6 +156,24 @@ public sealed class AllowanceCharge
     /// <summary>BT-96/103 VAT rate. Document level only.</summary>
     public decimal? VatRate { get; set; }
 
+    /// <summary>BT-X-265, BT-X-268 Calculation sequence. EXTENDED only.</summary>
+    public decimal? SequenceNumber { get; set; }
+
+    /// <summary>BT-X-266, BT-X-269 Base quantity. EXTENDED only.</summary>
+    public decimal? BaseQuantity { get; set; }
+
+    /// <summary>BT-X-267, BT-X-270 Unit of the base quantity. EXTENDED only.</summary>
+    public string? BaseQuantityUnitCode { get; set; }
+
+    /// <summary>BT-177-1 List of the reason code. EXTENDED only.</summary>
+    public string? ReasonCodeListId { get; set; }
+
+    /// <summary>BT-173, BT-175 VAT exemption reason. Document level, EXTENDED only.</summary>
+    public string? ExemptionReason { get; set; }
+
+    /// <summary>BT-174, BT-176 VAT exemption reason code. Document level, EXTENDED only.</summary>
+    public string? ExemptionReasonCode { get; set; }
+
     /// <summary>Creates an allowance.</summary>
     public static AllowanceCharge Allowance(decimal amount, string? reason = null, string? reasonCode = null,
         VatCategory category = VatCategory.StandardRate, decimal? vatRate = null)

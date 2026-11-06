@@ -18,6 +18,9 @@ All notable changes to this project are documented here. The format follows
   contractual due date; delivery terms and transport mode; quotation, delivery note and ultimate customer order references and the dates of the other references.
   `Party`, `Contact`, `InvoiceNote`, `PrecedingInvoiceReference` and `SupportingDocument` gain their EXTENDED terms. Other profiles ignore all of it and the pre-flight
   check warns. `CiiReader` reads it back for EXTENDED documents.
+- Factur-X EXTENDED, second part: tax currency exchange, VAT basis details, invoicing period description, logistics service charges, payment terms with partial payment,
+  penalty, discount and payee, charges on behalf of a third party, advance payments, and the extra allowance, charge and direct debit fields. Under EXTENDED the logistics
+  charges count as document level charges and third party charges add to the amount due; `InvoiceCalculator.Calculate(invoice, profile)` applies this.
 
 ### Changed
 - `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no

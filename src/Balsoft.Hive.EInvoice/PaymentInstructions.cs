@@ -70,4 +70,10 @@ public sealed class DirectDebit
 
     /// <summary>BT-91 Debited account identifier (IBAN).</summary>
     public string? DebitedAccountIdentifier { get; set; }
+
+    /// <summary>BT-216 Debited account name. EXTENDED only.</summary>
+    public string? DebitedAccountName { get; set; }
+
+    /// <summary>BT-215 Debited account payment service provider (BIC). EXTENDED only.</summary>
+    public string? DebitedServiceProviderIdentifier { get; set; }
 }

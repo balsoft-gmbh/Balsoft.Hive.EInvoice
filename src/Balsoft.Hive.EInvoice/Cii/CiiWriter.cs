@@ -85,7 +85,7 @@ public static class CiiWriter
             _x = x;
             _inv = invoice;
             _profile = profile;
-            _totals = InvoiceCalculator.Calculate(invoice);
+            _totals = InvoiceCalculator.Calculate(invoice, profile);
             _minimum = profile == InvoiceProfile.FacturXMinimum;
             _lines = profile.HasLines();
             _full = profile is InvoiceProfile.XRechnung or InvoiceProfile.EN16931 or InvoiceProfile.FacturXExtended
@@ -608,6 +608,15 @@ public static class CiiWriter
             }
 
             ExtendedPartyElement("PayerTradeParty", _ext?.Payer);
+            if (_ext?.TaxCurrencyExchange is { } exchange)
+            {
+                Start("TaxApplicableTradeCurrencyExchange");
+                Text("SourceCurrencyCode", exchange.SourceCurrencyCode);
+                Text("TargetCurrencyCode", exchange.TargetCurrencyCode);
+                Text("ConversionRate", exchange.ConversionRate.ToString("0.######", CultureInfo.InvariantCulture));
+                if (exchange.Date is { } exchangeDate) DateTimeElement("ConversionRateDateTime", exchangeDate);
+                End();
+            }
 
             if (!_minimum && pay is not null) PaymentMeans(pay);
 
@@ -620,6 +629,12 @@ public static class CiiWriter
                     Text("TypeCode", "VAT");
                     Text("ExemptionReason", b.ExemptionReason);
                     Text("BasisAmount", Amount(b.TaxableAmount));
+                    if (_ext?.WriteVatBasisDetails == true)
+                    {
+                        decimal lines = _inv.Lines.Where(l => l.VatCategory == b.Category && InvoiceCalculator.EffectiveRate(l.VatCategory, l.VatRate) == b.Rate).Sum(InvoiceCalculator.LineNetAmount);
+                        Text("LineTotalBasisAmount", Amount(lines));
+                        Text("AllowanceChargeBasisAmount", Amount(b.TaxableAmount - lines));
+                    }
                     Text("CategoryCode", b.Category.ToCode());
                     Text("ExemptionReasonCode", b.ExemptionReasonCode);
                     if (_full && _inv.TaxPointDate is { } tp)
@@ -636,14 +651,27 @@ public static class CiiWriter
                     End();
                 }
 
-                Period("BillingSpecifiedPeriod", _inv.InvoicingPeriod);
+                Period("BillingSpecifiedPeriod", _inv.InvoicingPeriod, _ext?.InvoicingPeriodDescription);
                 foreach (var ac in _inv.AllowancesAndCharges)
                     AllowanceCharge(ac, withTax: true);
+                if (_ext is not null)
+                    foreach (var charge in _ext.LogisticsCharges)
+                    {
+                        Start("SpecifiedLogisticsServiceCharge");
+                        Text("Description", charge.Description);
+                        Text("AppliedAmount", Amount(charge.Amount));
+                        foreach (var tax in charge.Taxes) ExtendedTaxElement("AppliedTradeTax", tax);
+                        End();
+                    }
             }
 
             string? terms = PaymentTermsText();
             string? mandate = pay?.DirectDebit?.MandateReference;
-            if (!_minimum && (terms is not null || _inv.DueDate.HasValue || Has(mandate)))
+            if (_ext is { PaymentTerms.Count: > 0 })
+            {
+                foreach (var term in _ext.PaymentTerms) PaymentTermElement(term);
+            }
+            else if (!_minimum && (terms is not null || _inv.DueDate.HasValue || Has(mandate)))
             {
                 Start("SpecifiedTradePaymentTerms");
                 if (terms is not null)
@@ -663,7 +691,7 @@ public static class CiiWriter
             if (!_minimum)
             {
                 Text("LineTotalAmount", Amount(_totals.LineNetTotal));
-                if (_inv.AllowancesAndCharges.Any(a => a.IsCharge)) Text("ChargeTotalAmount", Amount(_totals.ChargeTotal));
+                if (_inv.AllowancesAndCharges.Any(a => a.IsCharge) || _ext is { LogisticsCharges.Count: > 0 }) Text("ChargeTotalAmount", Amount(_totals.ChargeTotal));
                 if (_inv.AllowancesAndCharges.Any(a => !a.IsCharge)) Text("AllowanceTotalAmount", Amount(_totals.AllowanceTotal));
             }
             Text("TaxBasisTotalAmount", Amount(_totals.TaxExclusiveAmount));
@@ -675,6 +703,15 @@ public static class CiiWriter
             if (!_minimum && _inv.PrepaidAmount is { } prepaid) Text("TotalPrepaidAmount", Amount(prepaid));
             Text("DuePayableAmount", Amount(_full || _minimum ? _totals.AmountDue : _totals.AmountDue - (_totals.RoundingAmount ?? 0m)));
             End();
+
+            if (_ext is not null)
+                foreach (var adjustment in _ext.FinancialAdjustments)
+                {
+                    Start("SpecifiedFinancialAdjustment");
+                    Text("Reason", adjustment.Reason);
+                    Text("ActualAmount", Amount(adjustment.Amount));
+                    End();
+                }
 
             if (!_minimum)
             {
@@ -690,9 +727,69 @@ public static class CiiWriter
                 {
                     Start("ReceivableSpecifiedTradeAccountingAccount");
                     Text("ID", _inv.BuyerAccountingReference);
+                    Text("TypeCode", _ext?.BuyerAccountingTypeCode);
                     End();
                 }
             }
+            if (_ext is not null)
+                foreach (var payment in _ext.AdvancePayments)
+                {
+                    Start("SpecifiedAdvancePayment");
+                    Text("PaidAmount", Amount(payment.PaidAmount));
+                    if (payment.ReceivedDate is { } received) FormattedDate(received, "FormattedReceivedDateTime");
+                    foreach (var tax in payment.Taxes) ExtendedTaxElement("IncludedTradeTax", tax);
+                    if (Has(payment.InvoiceNumber))
+                    {
+                        Start("InvoiceSpecifiedReferencedDocument");
+                        Text("IssuerAssignedID", payment.InvoiceNumber);
+                        Text("TypeCode", payment.InvoiceTypeCode);
+                        if (payment.InvoiceDate is { } invoiceDate) FormattedDate(invoiceDate);
+                        End();
+                    }
+                    End();
+                }
+            End();
+        }
+
+        private void ExtendedTaxElement(string element, ExtendedTax tax)
+        {
+            Start(element);
+            if (tax.CalculatedAmount is { } calculated) Text("CalculatedAmount", Amount(calculated));
+            Text("TypeCode", "VAT");
+            Text("ExemptionReason", tax.ExemptionReason);
+            Text("CategoryCode", tax.Category.ToCode());
+            Text("ExemptionReasonCode", tax.ExemptionReasonCode);
+            if (InvoiceCalculator.EffectiveRate(tax.Category, tax.Rate) is { } rate) Text("RateApplicablePercent", Percent(rate));
+            End();
+        }
+
+        private void PaymentTermElement(ExtendedPaymentTerm term)
+        {
+            Start("SpecifiedTradePaymentTerms");
+            if (Has(term.Description))
+            {
+                _x.WriteStartElement("ram", "Description", Ram);
+                _x.WriteString(term.Description!);
+                _x.WriteEndElement();
+            }
+            if (term.DueDate is { } due) DateTimeElement("DueDateDateTime", due);
+            Text("DirectDebitMandateID", term.MandateReference);
+            if (term.PartialPaymentAmount is { } partial) Text("PartialPaymentAmount", Amount(partial));
+            PaymentAdjustmentElement("ApplicableTradePaymentPenaltyTerms", "ActualPenaltyAmount", term.Penalty);
+            PaymentAdjustmentElement("ApplicableTradePaymentDiscountTerms", "ActualDiscountAmount", term.Discount);
+            ExtendedPartyElement("PayeeTradeParty", term.Payee);
+            End();
+        }
+
+        private void PaymentAdjustmentElement(string element, string amountElement, PaymentAdjustment? adjustment)
+        {
+            if (adjustment is null) return;
+            Start(element);
+            if (adjustment.BasisDate is { } basisDate) DateTimeElement("BasisDateTime", basisDate);
+            if (adjustment.Period is { } period) Text("BasisPeriodMeasure", Quantity(period), "unitCode", adjustment.PeriodUnitCode);
+            if (adjustment.BaseAmount is { } baseAmount) Text("BasisAmount", Amount(baseAmount));
+            if (adjustment.Percentage is { } percentage) Text("CalculationPercent", Percent(percentage));
+            if (adjustment.Amount is { } amount) Text(amountElement, Amount(amount));
             End();
         }
 
@@ -721,6 +818,17 @@ public static class CiiWriter
                 {
                     Start("PayerPartyDebtorFinancialAccount");
                     Text("IBANID", Iban.Compact(pay.DirectDebit!.DebitedAccountIdentifier!));
+                    if (_extended) Text("AccountName", pay.DirectDebit.DebitedAccountName);
+                    End();
+                }
+            }
+
+            void DebtorInstitution()
+            {
+                if (_extended && Has(pay.DirectDebit?.DebitedServiceProviderIdentifier))
+                {
+                    Start("PayerSpecifiedDebtorFinancialInstitution");
+                    Text("BICID", pay.DirectDebit!.DebitedServiceProviderIdentifier);
                     End();
                 }
             }
@@ -732,6 +840,7 @@ public static class CiiWriter
                 Header();
                 Card();
                 Debtor();
+                DebtorInstitution();
                 End();
                 return;
             }
@@ -748,6 +857,7 @@ public static class CiiWriter
                 if (_full) Text("AccountName", account.AccountName);
                 if (!Iban.IsValid(compact)) Text("ProprietaryID", account.AccountIdentifier.Trim());
                 End();
+                DebtorInstitution();
                 if (_full && Has(account.ServiceProviderIdentifier))
                 {
                     Start("PayeeSpecifiedCreditorFinancialInstitution");
@@ -765,17 +875,21 @@ public static class CiiWriter
         {
             Start("SpecifiedTradeAllowanceCharge");
             Indicator(ac.IsCharge);
+            if (_extended && ac.SequenceNumber is { } sequence) Text("SequenceNumeric", Quantity(sequence));
             // BASIC has the base and percentage at document level only (withTax).
             if ((_full || withTax) && ac.Percentage is { } pct) Text("CalculationPercent", Percent(pct));
             if ((_full || withTax) && ac.BaseAmount is { } basis) Text("BasisAmount", Amount(basis));
+            if (_extended && ac.BaseQuantity is { } baseQuantity) Text("BasisQuantity", Quantity(baseQuantity), "unitCode", ac.BaseQuantityUnitCode);
             Text("ActualAmount", Amount(InvoiceCalculator.AmountOf(ac)));
-            Text("ReasonCode", ac.ReasonCode);
+            Text("ReasonCode", ac.ReasonCode, "listID", _extended ? ac.ReasonCodeListId : null);
             Text("Reason", ac.Reason);
             if (withTax)
             {
                 Start("CategoryTradeTax");
                 Text("TypeCode", "VAT");
+                if (_extended) Text("ExemptionReason", ac.ExemptionReason);
                 Text("CategoryCode", ac.VatCategory.ToCode());
+                if (_extended) Text("ExemptionReasonCode", ac.ExemptionReasonCode);
                 if (InvoiceCalculator.EffectiveRate(ac.VatCategory, ac.VatRate) is { } rate)
                     Text("RateApplicablePercent", Percent(rate));
                 End();
@@ -792,12 +906,13 @@ public static class CiiWriter
             End();
         }
 
-        private void Period(string element, Period? period)
+        private void Period(string element, Period? period, string? description = null)
         {
-            if (period is null || (period.Start is null && period.End is null)) return;
+            if (!Has(description) && (period is null || (period.Start is null && period.End is null))) return;
             Start(element);
-            if (period.Start is { } s) DateTimeElement("StartDateTime", s);
-            if (period.End is { } e) DateTimeElement("EndDateTime", e);
+            Text("Description", description);
+            if (period?.Start is { } s) DateTimeElement("StartDateTime", s);
+            if (period?.End is { } e) DateTimeElement("EndDateTime", e);
             End();
         }
 
@@ -811,9 +926,9 @@ public static class CiiWriter
             End();
         }
 
-        private void FormattedDate(DateTime date)
+        private void FormattedDate(DateTime date, string element = "FormattedIssueDateTime")
         {
-            Start("FormattedIssueDateTime");
+            Start(element);
             _x.WriteStartElement("qdt", "DateTimeString", Qdt);
             _x.WriteAttributeString("format", "102");
             _x.WriteString(date.ToString("yyyyMMdd", CultureInfo.InvariantCulture));

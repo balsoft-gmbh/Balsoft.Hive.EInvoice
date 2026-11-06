@@ -436,6 +436,38 @@ public static class Samples
         };
         inv.Extended.UltimateCustomerOrders.Add(new ExtendedDocumentReference { Number = "EK-1", Date = Issue.AddDays(-50) });
         inv.Extended.TransportModeCodes.Add("3");
+
+        inv.Currency = "EUR";
+        inv.TaxCurrency = "USD";
+        inv.VatTotalInTaxCurrency = 100m;
+        inv.Extended.TaxCurrencyExchange = new CurrencyExchange { SourceCurrencyCode = "EUR", TargetCurrencyCode = "USD", ConversionRate = 1.08m, Date = Issue };
+        inv.Extended.WriteVatBasisDetails = true;
+        inv.Extended.InvoicingPeriodDescription = "August 2026";
+        inv.Extended.BuyerAccountingTypeCode = "1";
+        var logistics = new LogisticsCharge { Description = "Fracht", Amount = 12m };
+        logistics.Taxes.Add(new ExtendedTax { Category = VatCategory.StandardRate, Rate = 19m });
+        inv.Extended.LogisticsCharges.Add(logistics);
+        logistics = new LogisticsCharge { Description = "Zollabwicklung", Amount = 5m };
+        logistics.Taxes.Add(new ExtendedTax { Category = VatCategory.Exempt, Rate = 0m, ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" });
+        inv.Extended.LogisticsCharges.Add(logistics);
+        inv.Extended.PaymentTerms.Add(new ExtendedPaymentTerm
+        {
+            Description = "Zahlbar innerhalb von 30 Tagen.",
+            DueDate = Issue.AddDays(30),
+            PartialPaymentAmount = 100m,
+            Penalty = new PaymentAdjustment { BasisDate = Issue, Period = 30m, PeriodUnitCode = "DAY", BaseAmount = 100m, Percentage = 5m, Amount = 5m },
+            Discount = new PaymentAdjustment { BasisDate = Issue, Period = 10m, PeriodUnitCode = "DAY", BaseAmount = 100m, Percentage = 2m, Amount = 2m },
+            Payee = Party("Terms Payee GmbH"),
+        });
+        inv.Extended.FinancialAdjustments.Add(new FinancialAdjustment { Reason = "Pfand", Amount = 3m });
+        var advance = new AdvancePayment { PaidAmount = 10m, ReceivedDate = Issue.AddDays(-10), InvoiceNumber = "RE-2026-0002", InvoiceTypeCode = "386", InvoiceDate = Issue.AddDays(-12) };
+        advance.Taxes.Add(new ExtendedTax { CalculatedAmount = 1.6m, Category = VatCategory.StandardRate, Rate = 19m });
+        advance.Taxes.Add(new ExtendedTax { CalculatedAmount = 0m, Category = VatCategory.Exempt, Rate = 0m, ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" });
+        inv.Extended.AdvancePayments.Add(advance);
+        inv.AddLine(new InvoiceLine("Steuerfreie Leistung", 1m, UnitCode.Piece, 40m, 0m, VatCategory.Exempt));
+        inv.VatExemptions.Add(new VatExemption { Category = VatCategory.Exempt, Reason = "Steuerfrei", ReasonCode = "VATEX-EU-G" });
+        inv.AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = false, Amount = 5m, Reason = "Treuerabatt", ReasonCode = "95", VatCategory = VatCategory.StandardRate, VatRate = 19m, SequenceNumber = 1m, BaseQuantity = 1m, BaseQuantityUnitCode = "C62" });
+        inv.AllowancesAndCharges.Add(new AllowanceCharge { IsCharge = true, Amount = 2m, Reason = "Fracht", ReasonCode = "FC", ReasonCodeListId = "UNTDID7161", VatCategory = VatCategory.Exempt, VatRate = 0m, SequenceNumber = 2m, BaseQuantity = 1m, BaseQuantityUnitCode = "C62", ExemptionReason = "Steuerfrei", ExemptionReasonCode = "VATEX-EU-G" });
         return inv;
     }
 }
