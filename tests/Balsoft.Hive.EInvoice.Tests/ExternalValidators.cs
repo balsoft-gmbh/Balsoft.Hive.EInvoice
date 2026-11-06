@@ -7,7 +7,7 @@ namespace Balsoft.Hive.EInvoice.Tests;
 /// Runs the official validators on files: the KoSIT validator with the XRechnung
 /// configuration (XRechnung and EN 16931 scenarios, CII and UBL) and the Mustang CLI (Factur-X
 /// / ZUGFeRD profile rules and PDF/A-3 via veraPDF). The tools live in the directory named by
-/// HIVE_VALIDATORS (validator.jar, xrechnung/scenarios.xml, mustang.jar); eng/get-validators.ps1
+/// HIVE_VALIDATORS (validator.jar, xrechnung/scenarios.xml, mustang.jar); eng/get-validators.sh
 /// and the CI workflow download them. Without it the external checks are skipped.
 /// </summary>
 public static class ExternalValidators

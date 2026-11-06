@@ -28,6 +28,10 @@ public static class Samples
         ["15-prepaid-rounding"] = PrepaidRounding,
         ["16-foreign-currency"] = ForeignCurrency,
         ["17-attachment"] = Attachment,
+        ["18-credit-note-exempt"] = CreditNoteExempt,
+        ["19-card-tax-point-rounding"] = CardTaxPointRounding,
+        ["20-department-contact"] = DepartmentContact,
+        ["21-credit-note-invoiced-object"] = CreditNoteInvoicedObject,
     };
 
     public static Invoice Base(string number = "RE-2026-0001")
@@ -198,7 +202,7 @@ public static class Samples
             {
                 MandateReference = "MANDAT-4711",
                 CreditorIdentifier = "DE98ZZZ09999999999",
-                DebitedAccountIdentifier = "DE02120300000000202051",
+                DebitedAccountIdentifier = "DE89370400440532013000",
             },
         };
         inv.PaymentTerms = "Der Betrag wird zum Fälligkeitsdatum per SEPA-Lastschrift eingezogen.";
@@ -304,6 +308,49 @@ public static class Samples
             FileName = "stundennachweis.csv",
         });
         inv.SupportingDocuments.Add(new SupportingDocument { Reference = "Vertrag-42", ExternalLocation = "https://balsoft.de/vertraege/42" });
+        return inv;
+    }
+
+    public static Invoice CreditNoteExempt()
+    {
+        var inv = Exempt();
+        inv.Number = "GS-2026-0018";
+        inv.TypeCode = InvoiceTypeCode.CreditNote;
+        inv.PrecedingInvoices.Add(new PrecedingInvoiceReference { Number = "RE-2026-0009", IssueDate = Issue.AddDays(-14) });
+        inv.VatExemptions[0].ReasonCode = "VATEX-EU-132-1I";
+        return inv;
+    }
+
+    public static Invoice CardTaxPointRounding()
+    {
+        var inv = Standard();
+        inv.Number = "RE-2026-0019";
+        inv.TaxPointDate = Issue;
+        inv.RoundingAmount = 0.01m;
+        inv.PaymentInstructions = new PaymentInstructions
+        {
+            MeansCode = "48",
+            MeansText = "Kreditkarte",
+            Card = new PaymentCard { PrimaryAccountNumber = "123456", HolderName = "Muster Kunde GmbH" },
+        };
+        inv.PaymentTerms = "Der Betrag wurde der Kreditkarte belastet.";
+        return inv;
+    }
+
+    public static Invoice DepartmentContact()
+    {
+        var inv = Standard();
+        inv.Number = "RE-2026-0020";
+        inv.Seller.Contact!.Name = null;
+        inv.Seller.Contact.Department = "Buchhaltung";
+        return inv;
+    }
+
+    public static Invoice CreditNoteInvoicedObject()
+    {
+        var inv = CreditNote();
+        inv.Number = "GS-2026-0021";
+        inv.InvoicedObjectIdentifier = new SchemedIdentifier("ZAEHLER-0815", "AAG");
         return inv;
     }
 }

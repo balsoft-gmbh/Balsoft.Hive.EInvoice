@@ -48,6 +48,12 @@ public class RoundTripTests
         var fromCii = InvoiceReader.Read(CiiWriter.Write(Samples.All[sample](), profile)).Invoice;
         var fromUbl = InvoiceReader.Read(UblWriter.Write(Samples.All[sample](), profile)).Invoice;
         fromCii.ProjectName = null;   // CII only, UBL has no element for it
+        foreach (var party in new[] { fromCii.Seller, fromCii.Buyer })   // UBL has one contact point element
+            if (party.Contact is { } contact)
+            {
+                contact.Name ??= contact.Department;
+                contact.Department = null;
+            }
         Assert.Equal(Text(CiiWriter.Write(fromCii, profile)), Text(CiiWriter.Write(fromUbl, profile)));
     }
 

@@ -208,7 +208,8 @@ public static class CiiReader
         {
             p.Contact = new Contact
             {
-                Name = c.Element(Ram + "PersonName").Value() ?? c.Element(Ram + "DepartmentName").Value(),
+                Name = c.Element(Ram + "PersonName").Value(),
+                Department = c.Element(Ram + "DepartmentName").Value(),
                 Phone = c.Element(Ram + "TelephoneUniversalCommunication")?.Element(Ram + "CompleteNumber").Value(),
                 Email = c.Element(Ram + "EmailURIUniversalCommunication")?.Element(Ram + "URIID").Value(),
             };
@@ -289,7 +290,8 @@ public static class CiiReader
                 {
                     AccountIdentifier = account.Element(Ram + "IBANID").Value() ?? account.Element(Ram + "ProprietaryID").Value() ?? "",
                     AccountName = account.Element(Ram + "AccountName").Value(),
-                    ServiceProviderIdentifier = means.Element(Ram + "PayeeSpecifiedCreditorFinancialInstitution")?.Element(Ram + "BICID").Value(),
+                    ServiceProviderIdentifier = means.Element(Ram + "PayeeSpecifiedCreditorFinancialInstitution")?.Element(Ram + "BICID").Value()
+                        ?? means.Element(Ram + "PayeeSpecifiedDebtorFinancialInstitution")?.Element(Ram + "BICID").Value(),
                 });
             }
         }

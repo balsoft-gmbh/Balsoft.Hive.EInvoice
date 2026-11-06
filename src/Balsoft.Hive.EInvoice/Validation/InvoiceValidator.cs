@@ -58,8 +58,24 @@ public static class InvoiceValidator
                 Vat();
                 Miscellaneous();
             }
+            if (_profile is InvoiceProfile.FacturXBasic or InvoiceProfile.FacturXBasicWL) BasicProfileLimits();
             if (_profile == InvoiceProfile.XRechnung) XRechnung();
             if (_profile == InvoiceProfile.PeppolBis3) Peppol();
+        }
+
+        // ── BASIC and BASIC WL have no element for these; the writer leaves them out ──
+
+        private void BasicProfileLimits()
+        {
+            void NotWritten(bool isSet, string term, string name)
+            {
+                if (isSet) Warn("PROFILE-NOT-WRITTEN", $"{_profile} has no element for the {name}; it is not written.", term);
+            }
+
+            NotWritten(_inv.TaxPointDate.HasValue, "BT-7", "VAT point date");
+            NotWritten(Has(_inv.PaymentInstructions?.MeansText), "BT-82", "payment means text");
+            NotWritten(Has(_inv.PaymentInstructions?.Card?.PrimaryAccountNumber), "BG-18", "payment card");
+            NotWritten(_inv.RoundingAmount.HasValue, "BT-114", "rounding amount, so the amount due excludes it");
         }
 
         // ── header (all profiles) ─────────────────────────────────────────────
@@ -403,7 +419,7 @@ public static class InvoiceValidator
             if (s.Contact is not { } c) Error("BR-DE-2", "XRechnung requires a seller contact with name, phone and email.", "BG-6");
             else
             {
-                if (!Has(c.Name)) Error("BR-DE-5", "XRechnung requires the seller contact point (name or department).", "BT-41");
+                if (!Has(c.Name) && !Has(c.Department)) Error("BR-DE-5", "XRechnung requires the seller contact point (name or department).", "BT-41");
                 if (!Has(c.Phone)) Error("BR-DE-6", "XRechnung requires the seller contact telephone number.", "BT-42");
                 else if (c.Phone!.Count(char.IsDigit) < 3) Warn("BR-DE-27", "The seller contact telephone number should contain at least three digits.", "BT-42");
                 if (!Has(c.Email)) Error("BR-DE-7", "XRechnung requires the seller contact email address.", "BT-43");

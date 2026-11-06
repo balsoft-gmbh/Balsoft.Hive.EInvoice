@@ -68,8 +68,14 @@ public sealed class PostalAddress
 /// <summary>A contact (BG-6 seller, BG-9 buyer).</summary>
 public sealed class Contact
 {
-    /// <summary>BT-41 / BT-56 Contact point: a person or department.</summary>
+    /// <summary>BT-41 / BT-56 Contact point: a person.</summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// BT-41 / BT-56 Contact point: a department, alone or next to <see cref="Name"/>. CII has an element for each;
+    /// UBL has one, which takes the name when there is one and the department otherwise.
+    /// </summary>
+    public string? Department { get; set; }
 
     /// <summary>BT-42 / BT-57 Contact telephone number. Mandatory for the seller in XRechnung (at least 3 digits).</summary>
     public string? Phone { get; set; }

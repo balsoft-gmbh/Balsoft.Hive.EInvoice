@@ -283,10 +283,10 @@ public static class UblWriter
             if (p.LegalRegistrationIdentifier is { } lr && Has(lr.Value)) B("CompanyID", lr.Value, "schemeID", lr.Scheme);
             if (seller) B("CompanyLegalForm", p.AdditionalLegalInformation);
             End();
-            if (p.Contact is { } c && (Has(c.Name) || Has(c.Phone) || Has(c.Email)))
+            if (p.Contact is { } c && (Has(c.Name) || Has(c.Department) || Has(c.Phone) || Has(c.Email)))
             {
                 A("Contact");
-                B("Name", c.Name);
+                B("Name", Has(c.Name) ? c.Name : c.Department);
                 B("Telephone", c.Phone);
                 B("ElectronicMail", c.Email);
                 End();

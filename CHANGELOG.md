@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `Contact.Department`: BT-41 / BT-56 as a department. CII writes `DepartmentName` next to `PersonName`; UBL has one
+  element, which takes the name, else the department. BR-DE-5 accepts either.
+- Factur-X MINIMUM writes BT-23 and the buyer country (BT-55) when set. `Invoice.BusinessProcess` has a default, so MINIMUM
+  output now carries BT-23 unless it is set to null.
+- Tests measure the writers against the KoSIT XRechnung model and each Factur-X schema. `eng/get-validators.sh` fetches them.
+
+### Changed
+- `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no
+  `PersonName`.
+- `CiiReader` takes BT-86 from `PayeeSpecifiedDebtorFinancialInstitution` when the Creditor element has none.
+
+### Fixed
+- Factur-X BASIC and BASIC WL no longer write BT-7, BT-82, BG-18 and BT-114, which their schemas do not have. The pre-flight check
+  warns (`PROFILE-NOT-WRITTEN`) for each value left out, and the amount due excludes the rounding amount.
+
 ## [1.1.0] - 2026-10-23
 
 ### Added

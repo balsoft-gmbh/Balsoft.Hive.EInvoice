@@ -100,7 +100,7 @@ public static class CiiWriter
 
             // ExchangedDocumentContext: BT-23 and BT-24
             _x.WriteStartElement("rsm", "ExchangedDocumentContext", Rsm);
-            if (!_minimum && !string.IsNullOrWhiteSpace(_inv.BusinessProcess))
+            if (!string.IsNullOrWhiteSpace(_inv.BusinessProcess))
             {
                 Start("BusinessProcessSpecifiedDocumentContextParameter");
                 Text("ID", _inv.BusinessProcess);
@@ -360,10 +360,11 @@ public static class CiiWriter
                 End();
             }
 
-            if (_full && party.Contact is { } c && (Has(c.Name) || Has(c.Phone) || Has(c.Email)))
+            if (_full && party.Contact is { } c && (Has(c.Name) || Has(c.Department) || Has(c.Phone) || Has(c.Email)))
             {
                 Start("DefinedTradeContact");
                 Text("PersonName", c.Name);
+                Text("DepartmentName", c.Department);
                 if (Has(c.Phone))
                 {
                     Start("TelephoneUniversalCommunication");
@@ -379,10 +380,10 @@ public static class CiiWriter
                 End();
             }
 
-            // MINIMUM carries the buyer without an address and the seller with its country only.
+            // MINIMUM carries the country only: mandatory for the seller, optional for the buyer.
             if (_minimum)
             {
-                if (seller)
+                if (seller || Has(party.Address.CountryCode))
                 {
                     Start("PostalTradeAddress");
                     Text("CountryID", party.Address.CountryCode);
@@ -503,7 +504,7 @@ public static class CiiWriter
                     Text("BasisAmount", Amount(b.TaxableAmount));
                     Text("CategoryCode", b.Category.ToCode());
                     Text("ExemptionReasonCode", b.ExemptionReasonCode);
-                    if (_inv.TaxPointDate is { } tp)
+                    if (_full && _inv.TaxPointDate is { } tp)
                     {
                         Start("TaxPointDate");
                         _x.WriteStartElement("udt", "DateString", Udt);
@@ -551,10 +552,10 @@ public static class CiiWriter
             Text("TaxTotalAmount", Amount(_totals.VatTotal), "currencyID", _inv.Currency);
             if (Has(_inv.TaxCurrency) && _inv.VatTotalInTaxCurrency is { } vatInTaxCurrency)
                 Text("TaxTotalAmount", Amount(vatInTaxCurrency), "currencyID", _inv.TaxCurrency);
-            if (!_minimum && _inv.RoundingAmount is { } rounding) Text("RoundingAmount", Amount(rounding));
+            if (_full && _inv.RoundingAmount is { } rounding) Text("RoundingAmount", Amount(rounding));
             Text("GrandTotalAmount", Amount(_totals.TaxInclusiveAmount));
             if (!_minimum && _inv.PrepaidAmount is { } prepaid) Text("TotalPrepaidAmount", Amount(prepaid));
-            Text("DuePayableAmount", Amount(_totals.AmountDue));
+            Text("DuePayableAmount", Amount(_full || _minimum ? _totals.AmountDue : _totals.AmountDue - (_totals.RoundingAmount ?? 0m)));
             End();
 
             if (!_minimum)
@@ -589,12 +590,12 @@ public static class CiiWriter
             void Header()
             {
                 Text("TypeCode", pay.MeansCode);
-                Text("Information", pay.MeansText);
+                if (_full) Text("Information", pay.MeansText);
             }
 
             void Card()
             {
-                if (pay.Card is { } card && Has(card.PrimaryAccountNumber))
+                if (_full && pay.Card is { } card && Has(card.PrimaryAccountNumber))
                 {
                     Start("ApplicableTradeSettlementFinancialCard");
                     Text("ID", card.PrimaryAccountNumber);
