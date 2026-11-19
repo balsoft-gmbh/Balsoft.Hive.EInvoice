@@ -117,6 +117,18 @@ public class HybridPdfTests
     }
 
     [Fact]
+    public void HybridWithSeveralAccountsIsValidInTheEn16931Profile()
+    {
+        byte[] xml = CiiWriter.Write(Samples.SeveralAccounts(), InvoiceProfile.EN16931);
+        byte[] pdf = HybridPdf.Create(Carriers.Vector(), xml, InvoiceProfile.EN16931);
+        Assert.Equal(xml, HybridPdf.ExtractXml(pdf));
+        string file = Save("vector-EN16931-several-accounts", pdf);
+        if (ExternalValidators.Directory is not { } tools) { Assert.Skip("HIVE_VALIDATORS is not set."); return; }
+        var outcome = ExternalValidators.Mustang(tools, file);
+        Assert.True(outcome.Accepted, outcome.ToString());
+    }
+
+    [Fact]
     public void TextCarrierWithEmbeddedFontsIsValid()
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { Assert.Skip("Uses Windows fonts."); return; }

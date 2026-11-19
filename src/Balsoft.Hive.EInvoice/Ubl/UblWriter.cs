@@ -405,8 +405,9 @@ public static class UblWriter
             for (int i = 0; i < count; i++)
             {
                 A("PaymentMeans");
-                B("PaymentMeansCode", pay.MeansCode, "name", pay.MeansText);
-                if (_credit && _inv.DueDate is { } due) B("PaymentDueDate", Date(due));
+                // UBL-SR-45 and UBL-SR-46: the due date and the means text occur once per document, not per account.
+                B("PaymentMeansCode", pay.MeansCode, "name", i == 0 ? pay.MeansText : null);
+                if (i == 0 && _credit && _inv.DueDate is { } due) B("PaymentDueDate", Date(due));
                 B("PaymentID", pay.RemittanceInformation);
                 if (pay.Card is { } card && Has(card.PrimaryAccountNumber))
                 {

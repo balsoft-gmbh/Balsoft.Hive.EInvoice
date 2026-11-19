@@ -33,6 +33,8 @@ public static class Samples
         ["20-department-contact"] = DepartmentContact,
         ["21-credit-note-invoiced-object"] = CreditNoteInvoicedObject,
         ["22-extended-terms"] = ExtendedFull,
+        ["23-several-accounts"] = SeveralAccounts,
+        ["24-credit-note-two-accounts"] = CreditNoteTwoAccounts,
     };
 
     public static Invoice Base(string number = "RE-2026-0001")
@@ -352,6 +354,33 @@ public static class Samples
         var inv = CreditNote();
         inv.Number = "GS-2026-0021";
         inv.InvoicedObjectIdentifier = new SchemedIdentifier("ZAEHLER-0815", "AAG");
+        return inv;
+    }
+
+    /// <summary>One payment means with four accounts (BG-17 0..n); the second has no BIC, the third no account name.</summary>
+    public static Invoice SeveralAccounts()
+    {
+        var inv = Standard();
+        inv.Number = "RE-2026-0023";
+        var pay = inv.PaymentInstructions!;
+        pay.RemittanceInformation = inv.Number;
+        pay.CreditTransfers.Clear();
+        pay.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "DE89 3704 0044 0532 0130 00", AccountName = "Balsoft GmbH", ServiceProviderIdentifier = "MUSTDEFFXXX" });
+        pay.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "DE02120300000000202051", AccountName = "Balsoft GmbH" });
+        pay.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "GB82 WEST 1234 5698 7654 32", ServiceProviderIdentifier = "TESTGB2LXXX" });
+        pay.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "NL91ABNA0417164300", AccountName = "Balsoft GmbH", ServiceProviderIdentifier = "SAMPNL2AXXX" });
+        return inv;
+    }
+
+    /// <summary>A credit note states its due date and the means text once, whatever the number of accounts (UBL-SR-45, UBL-SR-46).</summary>
+    public static Invoice CreditNoteTwoAccounts()
+    {
+        var inv = CreditNote();
+        inv.Number = "GS-2026-0024";
+        var pay = inv.PaymentInstructions!;
+        pay.RemittanceInformation = inv.Number;
+        pay.MeansText = "Überweisung";
+        pay.CreditTransfers.Add(new CreditTransferAccount { AccountIdentifier = "DE02120300000000202051", AccountName = "Balsoft GmbH", ServiceProviderIdentifier = "BEISDEB1XXX" });
         return inv;
     }
 

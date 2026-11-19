@@ -36,6 +36,10 @@ All notable changes to this project are documented here. The format follows
   percentage (BT-137, BT-138, BT-142, BT-143). The official profile lists do not have them. The pre-flight check warns
   (`PROFILE-NOT-WRITTEN`) for each value left out, and the amount due excludes the rounding amount.
 - Factur-X MINIMUM no longer writes the buyer VAT identifier (BT-48), which its official list does not have.
+- UBL with several credit transfer accounts (BG-17) writes the due date of a credit note (BT-9) and the payment means text
+  (BT-82) only in the first `cac:PaymentMeans`. Every account carried its own copy before, which breaks UBL-SR-45 and
+  UBL-SR-46. CII is unchanged: it repeats the code and the text in each payment means, as CII-SR-467 and CII-SR-468 expect.
+  New samples with four accounts and with a two-account credit note go through KoSIT and Mustang.
 
 ## [1.1.0] - 2026-10-23
 

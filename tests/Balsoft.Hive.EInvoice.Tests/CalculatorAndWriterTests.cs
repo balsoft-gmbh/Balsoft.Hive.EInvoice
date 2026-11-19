@@ -170,6 +170,88 @@ public class WriterTests
         Assert.Equal("12345678", accounts[1].Element(Ram + "ProprietaryID")!.Value);
     }
 
+    private static readonly XNamespace Cac = "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2";
+    private static readonly XNamespace Cbc = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
+
+    private static XDocument Ubl(Invoice inv, InvoiceProfile profile = InvoiceProfile.XRechnung)
+        => XDocument.Parse(UblWriter.WriteToString(inv, profile));
+
+    private static Invoice WithAccounts(int count)
+    {
+        var inv = Samples.SeveralAccounts();
+        if (count == 0)
+        {
+            inv.PaymentInstructions = null;
+            return inv;
+        }
+        var accounts = inv.PaymentInstructions!.CreditTransfers.Take(count).ToList();
+        inv.PaymentInstructions.CreditTransfers.Clear();
+        inv.PaymentInstructions.CreditTransfers.AddRange(accounts);
+        return inv;
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void EveryAccountIsItsOwnPaymentMeansWithTheSameCode(int count)
+    {
+        var inv = WithAccounts(count);
+        var cii = Cii(inv, InvoiceProfile.EN16931);
+        var means = cii.Descendants(Ram + "SpecifiedTradeSettlementPaymentMeans").ToList();
+        Assert.Equal(count, means.Count);
+        Assert.All(means, m => Assert.Equal("58", m.Element(Ram + "TypeCode")!.Value));
+        Assert.Equal(count == 0 ? 0 : 1, cii.Descendants(Ram + "PaymentReference").Count());
+        Assert.Equal(new[] { "DE89370400440532013000", "DE02120300000000202051", "GB82WEST12345698765432", "NL91ABNA0417164300" }.Take(count),
+            means.Select(m => m.Element(Ram + "PayeePartyCreditorFinancialAccount")!.Element(Ram + "IBANID")!.Value));
+
+        var ubl = Ubl(inv, InvoiceProfile.EN16931).Descendants(Cac + "PaymentMeans").ToList();
+        Assert.Equal(count, ubl.Count);
+        Assert.All(ubl, m => Assert.Equal("58", m.Element(Cbc + "PaymentMeansCode")!.Value));
+        Assert.All(ubl, m => Assert.Equal("RE-2026-0023", m.Element(Cbc + "PaymentID")!.Value));
+        Assert.Equal(count, ubl.Count(m => m.Element(Cac + "PayeeFinancialAccount") is not null));
+    }
+
+    [Fact]
+    public void AccountWithoutBicOrNameLeavesOnlyThatElementOut()
+    {
+        var cii = Cii(Samples.SeveralAccounts(), InvoiceProfile.EN16931).Descendants(Ram + "SpecifiedTradeSettlementPaymentMeans").ToList();
+        Assert.Null(cii[1].Element(Ram + "PayeeSpecifiedCreditorFinancialInstitution"));
+        Assert.NotNull(cii[1].Element(Ram + "PayeePartyCreditorFinancialAccount")!.Element(Ram + "AccountName"));
+        Assert.Null(cii[2].Element(Ram + "PayeePartyCreditorFinancialAccount")!.Element(Ram + "AccountName"));
+        Assert.NotNull(cii[2].Element(Ram + "PayeeSpecifiedCreditorFinancialInstitution"));
+
+        var ubl = Ubl(Samples.SeveralAccounts()).Descendants(Cac + "PayeeFinancialAccount").ToList();
+        Assert.Null(ubl[1].Element(Cac + "FinancialInstitutionBranch"));
+        Assert.Null(ubl[2].Element(Cbc + "Name"));
+    }
+
+    [Fact]
+    public void UblCreditNoteStatesTheDueDateOnceWhateverTheNumberOfAccounts()
+    {
+        var means = Ubl(Samples.CreditNoteTwoAccounts()).Descendants(Cac + "PaymentMeans").ToList();
+        Assert.Equal(2, means.Count);
+        Assert.Equal(1, means.Count(m => m.Element(Cbc + "PaymentDueDate") is not null));
+        Assert.NotNull(means[0].Element(Cbc + "PaymentDueDate"));
+        Assert.Equal("2026-10-15", means[0].Element(Cbc + "PaymentDueDate")!.Value);
+    }
+
+    [Fact]
+    public void UblMeansTextOccursOnceWhileCiiRepeatsItPerPaymentMeans()
+    {
+        var inv = Samples.SeveralAccounts();
+        inv.PaymentInstructions!.MeansText = "Überweisung";
+        var codes = Ubl(inv).Descendants(Cac + "PaymentMeans").Select(m => m.Element(Cbc + "PaymentMeansCode")!).ToList();
+        Assert.Equal(4, codes.Count);
+        Assert.Equal("Überweisung", codes[0].Attribute("name")!.Value);
+        Assert.All(codes.Skip(1), c => Assert.Null(c.Attribute("name")));
+        Assert.Equal("Überweisung", UblReader.Read(UblWriter.Write(inv, InvoiceProfile.XRechnung)).Invoice.PaymentInstructions!.MeansText);
+
+        var information = Cii(inv).Descendants(Ram + "SpecifiedTradeSettlementPaymentMeans").Select(m => m.Element(Ram + "Information")!.Value).ToList();
+        Assert.Equal(Enumerable.Repeat("Überweisung", 4), information);
+    }
+
     [Fact]
     public void InvalidInvoiceIsNotWrittenUnlessValidationIsSwitchedOff()
     {
