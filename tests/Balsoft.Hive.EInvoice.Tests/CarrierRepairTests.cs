@@ -81,6 +81,19 @@ public class CarrierRepairTests
         Assert.True(HasTrailingNotdef(untouched));
     }
 
+    [Fact]
+    public void SubsetFontsKeepThePdfA()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { Assert.Skip("Uses Windows fonts."); return; }
+        var log = new List<string>();
+        byte[] full = HybridPdf.Create(Ax2009Like(trailingNotdef: true), Samples.Standard(), InvoiceProfile.XRechnung, new HybridPdfOptions());
+        byte[] pdf = HybridPdf.Create(Ax2009Like(trailingNotdef: true), Samples.Standard(), InvoiceProfile.XRechnung,
+            new HybridPdfOptions { SubsetFonts = true, Log = log.Add });
+        Assert.Equal(2, log.Count(l => l.StartsWith("Embedded font 'Arial'", StringComparison.Ordinal) && l.Contains("(subset: ", StringComparison.Ordinal)));
+        Assert.True(pdf.Length < full.Length / 3, $"subset {pdf.Length:N0}, full {full.Length:N0} bytes");
+        AssertPdfA(pdf, "ax2009-subset");
+    }
+
     private static bool HasTrailingNotdef(byte[] pdf)
     {
         using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);

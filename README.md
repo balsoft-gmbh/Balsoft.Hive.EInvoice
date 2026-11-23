@@ -140,6 +140,12 @@ The official validators remain authoritative.
   `eng/icc/make_srgb_icc.py`, so the package ships no third-party ICC file.
 - TrueType fonts the carrier uses without embedding them are embedded from the system font
   folders, found by PostScript name. Type 1 fonts cannot be embedded this way and are logged.
+- With `HybridPdfOptions.SubsetFonts = true` such a font is embedded with only the glyphs the
+  carrier shows (glyph ids kept, unused outlines emptied). A full Arial adds about 420 KB to
+  the PDF; the letters of a one-page invoice about 40 KB.
+- `FontSubsetter.SubsetEmbeddedFonts(document)` does the same for TrueType fonts a PDF already
+  embeds in full. Fonts in form field defaults (`/AcroForm /DR`), fonts with a CMap other than
+  Identity, and fonts in content that cannot be read stay complete.
 
 ## Code lists
 

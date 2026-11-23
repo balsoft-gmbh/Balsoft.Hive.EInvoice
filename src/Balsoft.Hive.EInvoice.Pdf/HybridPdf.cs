@@ -33,6 +33,13 @@ public sealed class HybridPdfOptions
     public bool EmbedMissingFonts { get; set; } = true;
 
     /// <summary>
+    /// Embed only the glyphs the carrier shows of each font added by <see cref="EmbedMissingFonts"/>
+    /// (glyph ids kept, see <see cref="FontSubsetter"/>). A full Arial is about 420 KB in the PDF,
+    /// the letters of one invoice about 40 KB. Default false.
+    /// </summary>
+    public bool SubsetFonts { get; set; }
+
+    /// <summary>
     /// Remove .notdef glyph references at the end of text strings shown with two-byte Identity
     /// fonts, which some ERP print engines emit for line breaks and PDF/A forbids. Removing a
     /// trailing glyph changes nothing that is painted. Default true.
@@ -103,7 +110,7 @@ public static class HybridPdf
         AttachInvoice(output, invoiceXml, fileName, profile, timestamp);
         AddOutputIntent(output);
         if (options.EmbedMissingFonts)
-            FontEmbedder.EmbedMissingFonts(output, options.FontDirectories, options.Log);
+            FontEmbedder.EmbedMissingFonts(output, options.FontDirectories, options.Log, options.SubsetFonts);
         if (options.RemoveTrailingNotdef)
             NotdefCleaner.RemoveTrailingNotdef(output, options.Log);
 

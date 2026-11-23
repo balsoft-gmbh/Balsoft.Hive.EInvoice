@@ -16,7 +16,7 @@ namespace Balsoft.Hive.EInvoice.Pdf;
 /// </summary>
 internal static class FontEmbedder
 {
-    public static void EmbedMissingFonts(PdfDocument doc, IEnumerable<string> extraDirectories, Action<string>? log)
+    public static void EmbedMissingFonts(PdfDocument doc, IEnumerable<string> extraDirectories, Action<string>? log, bool subset = false)
     {
         var missing = new List<MissingFont>();
         var seen = new HashSet<PdfDictionary>();
@@ -25,6 +25,7 @@ internal static class FontEmbedder
         if (missing.Count == 0) return;
 
         var index = FontIndex.Build(extraDirectories.Concat(FontIndex.SystemDirectories()));
+        var usage = subset ? GlyphUsage.Collect(doc) : null;
         foreach (var font in missing)
         {
             var (baseFont, descriptor, cidFont) = (font.BaseFont, font.Descriptor, font.CidFont);
@@ -39,6 +40,14 @@ internal static class FontEmbedder
                 continue;
             }
             byte[] program = File.ReadAllBytes(file);
+            string note = "";
+            if (usage is not null && TrueTypeFont.TryParse(program, out var parsed) && usage.Glyphs(descriptor, parsed) is { } glyphs
+                && FontSubsetter.Subset(parsed, glyphs, keepPost: cidFont is null) is { } reduced && reduced.Length < program.Length)
+            {
+                note = $" (subset: {glyphs.Count} of {parsed.GlyphCount} glyphs, {reduced.Length:N0} of {program.Length:N0} bytes)";
+                program = reduced;
+                usage.Tag(descriptor, FontSubsetter.Tag(glyphs, name));
+            }
             var stream = new PdfDictionary(doc);
             stream.CreateStream(PdfSharp.Pdf.Filters.Filtering.FlateDecode.Encode(program));
             stream.Elements["/Filter"] = new PdfName("/FlateDecode");
@@ -49,7 +58,7 @@ internal static class FontEmbedder
             // Identity is also the default when the key is absent, so rendering does not change.
             if (cidFont is not null && !cidFont.Elements.ContainsKey("/CIDToGIDMap"))
                 cidFont.Elements["/CIDToGIDMap"] = new PdfName("/Identity");
-            log?.Invoke($"Embedded font '{name}'{(bold ? " bold" : "")}{(italic ? " italic" : "")} from {file}.");
+            log?.Invoke($"Embedded font '{name}'{(bold ? " bold" : "")}{(italic ? " italic" : "")} from {file}{note}.");
         }
     }
 

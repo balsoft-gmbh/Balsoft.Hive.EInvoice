@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Balsoft.Hive.EInvoice.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Resources\sRGB.icc" LogicalName="Balsoft.Hive.EInvoice.Pdf.sRGB.icc" />
   </ItemGroup>
 

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-23
+
 ### Added
 - `Contact.Department`: BT-41 / BT-56 as a department. CII writes `DepartmentName` next to `PersonName`; UBL has one
   element, which takes the name, else the department. BR-DE-5 accepts either.
@@ -25,6 +27,11 @@ All notable changes to this project are documented here. The format follows
   references, delivery terms, quantities, stated line totals, and the extra attribute and classification fields. Under EXTENDED a line whose status reason is not DETAIL is left out of the totals.
 
 - Under EXTENDED a line, document level allowance or charge and EXTENDED tax without their own exemption reason take it from `Invoice.VatExemptions` (BR-FXEXT-*-08rev).
+- `HybridPdfOptions.SubsetFonts`: fonts embedded from the system keep only the glyphs the carrier shows. Glyph ids stay, so content
+  streams, CIDs and widths are untouched; composite glyphs keep their components; names get a subset tag.
+- `FontSubsetter`: `Subset(program, glyphIds)` for one TrueType program and `SubsetEmbeddedFonts(document)` for every TrueType font
+  a PDF embeds in full. Glyphs are collected from pages, form XObjects, tiling patterns, soft mask groups, Type3 glyph procedures and
+  annotation appearances.
 
 ### Changed
 - `CiiReader` fills `Contact.Department` from `DepartmentName`, which used to land in `Contact.Name` when there was no
