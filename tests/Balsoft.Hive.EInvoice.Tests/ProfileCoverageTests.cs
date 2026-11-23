@@ -29,10 +29,14 @@ public class ProfileCoverageTests
         [("cii", "BT-86")] = "PayeeSpecifiedDebtorFinancialInstitution",
     };
 
-    /// <summary>A definition file, or null when no validators are set up. A set up folder without the file fails: a skip here would hide a gap.</summary>
+    /// <summary>
+    /// A definition file, or null when no validators are set up: HIVE_VALIDATORS unset or naming a folder that does not
+    /// exist (eng/release.ps1 always sets it, also on a host without validators). A folder that exists but lacks the file
+    /// fails: a skip there would hide an outdated download.
+    /// </summary>
     private static string? Tool(params string[] path)
     {
-        if (Environment.GetEnvironmentVariable("HIVE_VALIDATORS") is not { Length: > 0 } dir) return null;
+        if (Environment.GetEnvironmentVariable("HIVE_VALIDATORS") is not { Length: > 0 } dir || !Directory.Exists(dir)) return null;
         string full = Path.Combine(new[] { dir }.Concat(path).ToArray());
         Assert.True(File.Exists(full), $"{full} is missing; run eng/get-validators.sh.");
         return full;
