@@ -59,6 +59,7 @@ public static class InvoiceValidator
                 Vat();
                 Miscellaneous();
             }
+            if (_profile != InvoiceProfile.FacturXMinimum && _profile != InvoiceProfile.PeppolBis3) CiiDeliveryNotEmpty();
             if (_profile is InvoiceProfile.FacturXBasic or InvoiceProfile.FacturXBasicWL) BasicProfileLimits();
             if (_profile == InvoiceProfile.XRechnung) XRechnung();
             if (_profile == InvoiceProfile.PeppolBis3) Peppol();
@@ -78,6 +79,20 @@ public static class InvoiceValidator
                     || l.AllowancesAndCharges.Any(a => a.SequenceNumber.HasValue || a.BaseQuantity.HasValue || Has(a.ReasonCodeListId)))
                 || _inv.AllowancesAndCharges.Any(a => a.SequenceNumber.HasValue || a.BaseQuantity.HasValue || Has(a.ReasonCodeListId) || Has(a.ExemptionReason) || Has(a.ExemptionReasonCode));
             if (set) Warn("PROFILE-NOT-WRITTEN", $"{_profile} has no element for the EXTENDED terms; they are not written.", "EXTENDED");
+        }
+
+        // ── CII has to write the header delivery element; without content validators refuse it as empty ──
+
+        private void CiiDeliveryNotEmpty()
+        {
+            var d = _inv.Delivery;
+            var ext = _profile == InvoiceProfile.FacturXExtended ? _inv.Extended : null;
+            bool content = d?.ActualDeliveryDate is not null || Has(d?.PartyName) || d?.LocationIdentifier is not null || d?.Address is not null
+                || Has(_inv.DespatchAdviceReference)
+                || (_profile is InvoiceProfile.EN16931 or InvoiceProfile.XRechnung or InvoiceProfile.FacturXExtended && Has(_inv.ReceivingAdviceReference))
+                || ext is { TransportModeCodes.Count: > 0 } || ext?.ShipTo is not null || ext?.UltimateShipTo is not null || ext?.ShipFrom is not null || ext?.DeliveryNote is not null;
+            if (!content)
+                Warn("PEPPOL-EN16931-R008", "Written as CII the invoice has an empty delivery element, which validators refuse (Factur-X: the actual delivery date is always given). Set the actual delivery date, for a prepayment invoice at least the deliver-to country.", "BT-72, BT-80");
         }
 
         // ── BASIC and BASIC WL have no element for these; the writer leaves them out ──
