@@ -261,4 +261,39 @@ public class ProfileLimitsTests
         inv.Seller.TradingName = "Trading";
         Assert.NotEmpty(Cii(inv, InvoiceProfile.FacturXBasic).Descendants(Ram + "SellerTradeParty").Descendants(Ram + "TradingBusinessName"));
     }
+
+    [Theory]
+    [InlineData(InvoiceProfile.EN16931)]
+    [InlineData(InvoiceProfile.XRechnung)]
+    [InlineData(InvoiceProfile.FacturXBasicWL)]
+    [InlineData(InvoiceProfile.FacturXBasic)]
+    [InlineData(InvoiceProfile.FacturXExtended)]
+    public void AnInvoiceWithoutDeliveryContentIsReportedBecauseItsCiiDeliveryElementWouldBeEmpty(InvoiceProfile profile)
+    {
+        // An invoicing period does not fill the delivery element: validators still refuse it as empty.
+        var inv = Samples.Standard();
+        inv.Delivery = null;
+        inv.InvoicingPeriod = new Period(new DateTime(2026, 9, 1), new DateTime(2026, 10, 31));
+        var issue = Assert.Single(InvoiceValidator.Validate(inv, profile).Issues, i => i.RuleId == "PEPPOL-EN16931-R008");
+        Assert.Equal(Severity.Warning, issue.Severity);
+        Assert.Empty(Cii(inv, profile).Descendants(Ram + "ApplicableHeaderTradeDelivery").Single().Elements());
+
+        inv.Delivery = new DeliveryInformation { ActualDeliveryDate = new DateTime(2026, 10, 31) };
+        Assert.DoesNotContain(InvoiceValidator.Validate(inv, profile).Issues, i => i.RuleId == "PEPPOL-EN16931-R008");
+        Assert.NotEmpty(Cii(inv, profile).Descendants(Ram + "ApplicableHeaderTradeDelivery").Single().Elements());
+
+        // A deliver-to address alone fills it too, as on a prepayment invoice.
+        inv.Delivery = new DeliveryInformation { Address = new PostalAddress { CountryCode = "DE" } };
+        Assert.DoesNotContain(InvoiceValidator.Validate(inv, profile).Issues, i => i.RuleId == "PEPPOL-EN16931-R008");
+    }
+
+    [Theory]
+    [InlineData(InvoiceProfile.FacturXMinimum)]
+    [InlineData(InvoiceProfile.PeppolBis3)]
+    public void MinimumAndPeppolUblAreNotAskedForDeliveryContent(InvoiceProfile profile)
+    {
+        var inv = Samples.Standard();
+        inv.Delivery = null;
+        Assert.DoesNotContain(InvoiceValidator.Validate(inv, profile).Issues, i => i.RuleId == "PEPPOL-EN16931-R008");
+    }
 }

@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-26
+
+### Added
+- Pre-flight warning `PEPPOL-EN16931-R008` (BT-72, BT-80) when an invoice has no delivery content: no actual delivery
+  date, no deliver-to party, location or address and no delivery references. CII has to write the header delivery
+  element, and validators refuse it when it is empty (Mustang PEPPOL-EN16931-R008, Valitool VD-Valitool-168: a Factur-X
+  invoice always gives the actual delivery date; an invoicing period does not replace it). Reported for EN 16931,
+  XRechnung and Factur-X BASIC WL, BASIC and EXTENDED; not for MINIMUM and Peppol BIS (UBL writes no empty element).
+  The writers are unchanged and never invent a date: set `Invoice.Delivery.ActualDeliveryDate`, for example to the end
+  of the invoicing period.
+
 ## [1.2.0] - 2026-11-23
 
 ### Added
