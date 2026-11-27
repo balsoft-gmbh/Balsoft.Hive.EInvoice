@@ -108,6 +108,8 @@ public class HybridPdfTests
             Assert.Contains($"<fx:ConformanceLevel>{profile.FacturXConformanceLevel()}</fx:ConformanceLevel>", xmp);
             Assert.Contains($"<fx:DocumentFileName>{profile.EmbeddedFileName()}</fx:DocumentFileName>", xmp);
             Assert.Contains("<pdfaid:part>3</pdfaid:part>", xmp);
+            // BR-HYBRID-09 / BR-HYBRID-10: a HybridDocumentVersion value, 1.0, for every profile including XRECHNUNG.
+            Assert.Contains("<fx:Version>1.0</fx:Version>", xmp);
         }
 
         string file = Save($"vector-{profile}", pdf);

@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-27
+
+### Fixed
+- `fx:Version` in the XMP metadata of a hybrid PDF is `1.0` for every profile. The XRECHNUNG level wrote `3.0`, which is
+  not in the HybridDocumentVersion code list (Factur-X 1.09.2 BR-HYBRID-09, Fatal; BR-HYBRID-10: SHOULD be 1.0).
+
 ## [1.2.1] - 2026-11-26
 
 ### Added

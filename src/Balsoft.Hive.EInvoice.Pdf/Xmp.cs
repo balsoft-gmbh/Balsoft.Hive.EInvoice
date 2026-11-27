@@ -19,9 +19,9 @@ internal static class Xmp
         string E(string? s) => SecurityElement.Escape(s ?? "") ?? "";
         string Date(DateTime d) => d.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture);
 
-        // fx:Version is the version of the Factur-X XMP schema convention, "1.0" for Factur-X
-        // 1.x / ZUGFeRD 2.x; XRechnung documents use the XRechnung version.
-        string version = profile == InvoiceProfile.XRechnung ? "3.0" : "1.0";
+        // fx:Version is a value of the HybridDocumentVersion code list (1.0, 1p0, 2p0, 2p1, 2p2; Factur-X 1.09.2
+        // BR-HYBRID-09, Fatal) and SHOULD be 1.0 (BR-HYBRID-10), also for the XRECHNUNG level: there is no 3.x value.
+        const string version = "1.0";
 
         var sb = new StringBuilder();
         sb.Append("<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n");
